@@ -68,74 +68,81 @@ const _container_types    = [TSTRUCT, TMAP, TSET, TLIST]
 iscontainer(typ::Int32)   = (typ in _container_type_ids)
 iscontainer{T}(typ::Type{T})    = iscontainer(thrift_type(typ))
 
+##
+# base processor method
+abstract TProcessor
+process(tp::TProcessor) = nothing
+
 
 ##
 # base transport types
-abstract TTransportBase
-abstract TServerTransportBase <: TTransportBase
+abstract TTransport
+abstract TServerTransport <: TTransport
 
+##
+# base server type
+abstract TServer
 
 ##
 # base protocol types
-instantiate(t::Type) = (t.abstract) ? error("can not instantiate abstract type $t") : ccall(:jl_new_struct_uninit, Any, (Any,Any...), t)
-
-abstract TProtocolBase
+abstract TProtocol
 
 ##
 # base protocol read and write methods
+instantiate(t::Type) = (t.abstract) ? error("can not instantiate abstract type $t") : ccall(:jl_new_struct_uninit, Any, (Any,Any...), t)
 for _typ in _TJTypes
     if !iscontainer(_typ)
         @eval begin
-            write(p::TProtocolBase, val::$(_typ)) = nothing
-            read(p::TProtocolBase, ::Type{$(_typ)}) = nothing
-            skip(p::TProtocolBase, ::Type{$(_typ)}) = read(p, $(_typ))
+            write(p::TProtocol, val::$(_typ)) = nothing
+            read(p::TProtocol, ::Type{$(_typ)}) = nothing
+            skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
         end
     end
 end
 
-writeMessageBegin(p::TProtocolBase, name::String, ttype::Int32, seqid::Integer)    = nothing
-writeMessageEnd(p::TProtocolBase)                                                  = nothing
-writeStructBegin(p::TProtocolBase, name::String)                                   = nothing
-writeStructEnd(p::TProtocolBase)                                                   = nothing
-writeFieldBegin(p::TProtocolBase, name::String, ttype::Int32, fid::Integer)        = nothing 
-writeFieldEnd(p::TProtocolBase)                                                    = nothing
-writeFieldStop(p::TProtocolBase)                                                   = nothing
-writeMapBegin(p::TProtocolBase, ktype::Int32, vtype::Int32, size::Integer)         = nothing
-writeMapEnd(p::TProtocolBase)                                                      = nothing
-writeListBegin(p::TProtocolBase, etype::Int32, size::Integer)                      = nothing
-writeListEnd(p::TProtocolBase)                                                     = nothing
-writeSetBegin(p::TProtocolBase, etype::Int32, size::Integer)                       = nothing
-writeSetEnd(p::TProtocolBase)                                                      = nothing
-writeBool(p::TProtocolBase, val)                                                   = write(p, convert(TBOOL, val))
-writeByte(p::TProtocolBase, val)                                                   = write(p, convert(TBYTE, val))
-writeI16(p::TProtocolBase, val)                                                    = write(p, convert(TI16, val))
-writeI32(p::TProtocolBase, val)                                                    = write(p, convert(TI32, val))
-writeI64(p::TProtocolBase, val)                                                    = write(p, convert(TI64, val))
-writeDouble(p::TProtocolBase, val)                                                 = write(p, convert(TDOUBLE, val))
-writeString(p::TProtocolBase, val)                                                 = write(p, bytestring(val))
+writeMessageBegin(p::TProtocol, name::String, ttype::Int32, seqid::Integer)    = nothing
+writeMessageEnd(p::TProtocol)                                                  = nothing
+writeStructBegin(p::TProtocol, name::String)                                   = nothing
+writeStructEnd(p::TProtocol)                                                   = nothing
+writeFieldBegin(p::TProtocol, name::String, ttype::Int32, fid::Integer)        = nothing 
+writeFieldEnd(p::TProtocol)                                                    = nothing
+writeFieldStop(p::TProtocol)                                                   = nothing
+writeMapBegin(p::TProtocol, ktype::Int32, vtype::Int32, size::Integer)         = nothing
+writeMapEnd(p::TProtocol)                                                      = nothing
+writeListBegin(p::TProtocol, etype::Int32, size::Integer)                      = nothing
+writeListEnd(p::TProtocol)                                                     = nothing
+writeSetBegin(p::TProtocol, etype::Int32, size::Integer)                       = nothing
+writeSetEnd(p::TProtocol)                                                      = nothing
+writeBool(p::TProtocol, val)                                                   = write(p, convert(TBOOL, val))
+writeByte(p::TProtocol, val)                                                   = write(p, convert(TBYTE, val))
+writeI16(p::TProtocol, val)                                                    = write(p, convert(TI16, val))
+writeI32(p::TProtocol, val)                                                    = write(p, convert(TI32, val))
+writeI64(p::TProtocol, val)                                                    = write(p, convert(TI64, val))
+writeDouble(p::TProtocol, val)                                                 = write(p, convert(TDOUBLE, val))
+writeString(p::TProtocol, val)                                                 = write(p, bytestring(val))
 
-readMessageBegin(p::TProtocolBase)     = nothing
-readMessageEnd(p::TProtocolBase)       = nothing
-readStructBegin(p::TProtocolBase)      = nothing
-readStructEnd(p::TProtocolBase)        = nothing
-readFieldBegin(p::TProtocolBase)       = nothing
-readFieldEnd(p::TProtocolBase)         = nothing
-readMapBegin(p::TProtocolBase)         = nothing
-readMapEnd(p::TProtocolBase)           = nothing
-readListBegin(p::TProtocolBase)        = nothing
-readListEnd(p::TProtocolBase)          = nothing
-readSetBegin(p::TProtocolBase)         = nothing
-readSetEnd(p::TProtocolBase)           = nothing
-readBool(p::TProtocolBase)             = read(p, TBOOL)
-readByte(p::TProtocolBase)             = read(p, TBYTE)
-readI16(p::TProtocolBase)              = read(p, TI16)
-readI32(p::TProtocolBase)              = read(p, TI32)
-readI64(p::TProtocolBase)              = read(p, TI64)
-readDouble(p::TProtocolBase)           = read(p, TDOUBLE)
-readString(p::TProtocolBase)           = read(p, ByteString)
+readMessageBegin(p::TProtocol)     = nothing
+readMessageEnd(p::TProtocol)       = nothing
+readStructBegin(p::TProtocol)      = nothing
+readStructEnd(p::TProtocol)        = nothing
+readFieldBegin(p::TProtocol)       = nothing
+readFieldEnd(p::TProtocol)         = nothing
+readMapBegin(p::TProtocol)         = nothing
+readMapEnd(p::TProtocol)           = nothing
+readListBegin(p::TProtocol)        = nothing
+readListEnd(p::TProtocol)          = nothing
+readSetBegin(p::TProtocol)         = nothing
+readSetEnd(p::TProtocol)           = nothing
+readBool(p::TProtocol)             = read(p, TBOOL)
+readByte(p::TProtocol)             = read(p, TBYTE)
+readI16(p::TProtocol)              = read(p, TI16)
+readI32(p::TProtocol)              = read(p, TI32)
+readI64(p::TProtocol)              = read(p, TI64)
+readDouble(p::TProtocol)           = read(p, TDOUBLE)
+readString(p::TProtocol)           = read(p, ByteString)
 
 
-function skip(p::TProtocolBase, ::Type{TSTRUCT})
+function skip(p::TProtocol, ::Type{TSTRUCT})
     name = readStructBegin(p)
     while true
         (name, ttype, id) = readFieldBegin(p)
@@ -147,7 +154,7 @@ function skip(p::TProtocolBase, ::Type{TSTRUCT})
     return
 end
 
-function read(p::TProtocolBase, ::Type{TSTRUCT}, val=nothing)
+function read(p::TProtocol, ::Type{TSTRUCT}, val=nothing)
     name = readStructBegin(p)
     structtyp = eval(symbol(name)) 
     if val == nothing 
@@ -175,7 +182,7 @@ function read(p::TProtocolBase, ::Type{TSTRUCT}, val=nothing)
     val
 end
 
-function write(p::TProtocolBase, val::TSTRUCT)
+function write(p::TProtocol, val::TSTRUCT)
     structtyp = typeof(val)
     writeStructBegin(p, string(structtyp))
     names = structtyp.names
@@ -191,7 +198,7 @@ function write(p::TProtocolBase, val::TSTRUCT)
     nothing
 end
 
-function skip(p::TProtocolBase, ::Type{TMAP})
+function skip(p::TProtocol, ::Type{TMAP})
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
@@ -203,7 +210,7 @@ function skip(p::TProtocolBase, ::Type{TMAP})
     return
 end
 
-function read(p::TProtocolBase, ::Type{TMAP}, val=nothing)
+function read(p::TProtocol, ::Type{TMAP}, val=nothing)
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
@@ -224,7 +231,7 @@ function read(p::TProtocolBase, ::Type{TMAP}, val=nothing)
     val
 end
 
-function write(p::TProtocolBase, val::TMAP)
+function write(p::TProtocol, val::TMAP)
     (ktype,vtype) = eltype(val)
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
@@ -234,7 +241,7 @@ function write(p::TProtocolBase, val::TMAP)
     writeMapEnd(p)
 end
 
-function skip(p::TProtocolBase, ::Type{TSET})
+function skip(p::TProtocol, ::Type{TSET})
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -243,7 +250,7 @@ function skip(p::TProtocolBase, ::Type{TSET})
     readSetEnd(p)
 end
 
-function read(p::TProtocolBase, ::Type{TSET}, val=nothing)
+function read(p::TProtocol, ::Type{TSET}, val=nothing)
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
     if val == nothing
@@ -259,7 +266,7 @@ function read(p::TProtocolBase, ::Type{TSET}, val=nothing)
     val
 end
 
-function write(p::TProtocolBase, val::TSET)
+function write(p::TProtocol, val::TSET)
     writeSetBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
     for v in val
@@ -268,7 +275,7 @@ function write(p::TProtocolBase, val::TSET)
     writeSetEnd(p)
 end
 
-function skip(p::TProtocolBase, ::Type{TLIST})
+function skip(p::TProtocol, ::Type{TLIST})
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -277,7 +284,7 @@ function skip(p::TProtocolBase, ::Type{TLIST})
     readListEnd(p)
 end
 
-function read(p::TProtocolBase, ::Type{TLIST}, val=nothing)
+function read(p::TProtocol, ::Type{TLIST}, val=nothing)
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
     if val == nothing
@@ -292,7 +299,7 @@ function read(p::TProtocolBase, ::Type{TLIST}, val=nothing)
     readListEnd(p)
 end
 
-function write(p::TProtocolBase, val::TLIST)
+function write(p::TProtocol, val::TLIST)
     writeListBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
     for v in val
@@ -302,4 +309,59 @@ function write(p::TProtocolBase, val::TLIST)
     nothing
 end
 
+
+##
+# Exception types
+type TException <: Exception
+    message::String
+end
+
+type _enum_TApplicationExceptionTypes
+    UNKNOWN::Int32
+    UNKNOWN_METHOD::Int32
+    INVALID_MESSAGE_TYPE::Int32
+    WRONG_METHOD_NAME::Int32
+    BAD_SEQUENCE_ID::Int32
+    MISSING_RESULT::Int32 
+    INTERNAL_ERROR::Int32
+    PROTOCOL_ERROR::Int32
+    INVALID_TRANSFORM::Int32
+    INVALID_PROTOCOL::Int32
+    UNSUPPORTED_CLIENT_TYPE::Int32
+end
+
+const ApplicationExceptionType = _enum_TApplicationExceptionTypes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+const _appex_msgs = [
+    "Default (unknown) TApplicationException",
+    "Unknown method",
+    "Invalid message type",
+    "Wrong method name",
+    "Bad sequence ID",
+    "Missing result",
+    "Internal error",
+    "Protocol error",
+    "Invalid transform",
+    "Invalid protocol",
+    "Unsupported client type"
+]   
+    
+type TApplicationException <: Exception
+    typ::Int32
+    message::String
+
+    TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::String="") = new(typ, isempty(message) ? _appex_msgs[typ+1] : message)
+end
+
+
+
+##
+# Message types
+type _enum_TMessageType
+    CALL::Int32
+    REPLY::Int32
+    EXCEPTION::Int32
+    ONEWAY::Int32
+end 
+
+const MessageType = _enum_TMessageType(1, 2, 3, 4)
 

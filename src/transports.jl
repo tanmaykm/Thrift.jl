@@ -1,6 +1,6 @@
 import Base.TcpSocket, Base.TcpServer
 
-type _enum_TTransportExceptionTypes <: TExceptionBase
+type _enum_TTransportExceptionTypes
     UNKNOWN::Int32
     NOT_OPEN::Int32
     ALREADY_OPEN::Int32
@@ -8,25 +8,25 @@ type _enum_TTransportExceptionTypes <: TExceptionBase
     END_OF_FILE::Int32
 end
 
-const TTransportExceptionTypes = _enum_TTransportExceptionTypes(0, 1, 2, 3, 4)
+const TransportExceptionTypes = _enum_TTransportExceptionTypes(0, 1, 2, 3, 4)
 
-type TTransportException <: TExceptionBase
+type TTransportException <: Exception
     typ::Int32
     message::String
 
-    TTransportException(typ=TTransportException.UNKNOWN, message::String="") = new(typ, message)
+    TTransportException(typ=TransportExceptionTypes.UNKNOWN, message::String="") = new(typ, message)
 end
 
 # generic transport methods
-read{T <: TTransportBase}(t::T, sz::Integer) = read(t, Array(Uint8, sz))
+read{T <: TTransport}(t::T, sz::Integer) = read(t, Array(Uint8, sz))
 # TODO: can have more common methods by naming wrapped transports as io
 
 # framed transport
-type TFramedTransport <: TTransportBase
-    tp::TTransportBase
+type TFramedTransport <: TTransport
+    tp::TTransport
     rbuff::IOBuffer
     wbuff::IOBuffer
-    TFramedTransport(tp::TTransportBase) = new(tp, PipeBuffer(), PipeBuffer())
+    TFramedTransport(tp::TTransport) = new(tp, PipeBuffer(), PipeBuffer())
 end
 rawio(t::TFramedTransport) = rawio(tp)
 open(t::TFramedTransport) = open(t.tp)
@@ -56,7 +56,7 @@ end
 
 
 # thrift socket transport 
-type TSocket <: TTransportBase
+type TSocket <: TTransport
     host::String
     port::Integer
 
@@ -66,7 +66,7 @@ type TSocket <: TTransportBase
     TSocket(port::Integer) = TSocket("127.0.0.1", port)
 end
 
-type TServerSocket <: TServerTransportBase
+type TServerSocket <: TServerTransport
     host::String
     port::Integer
 
