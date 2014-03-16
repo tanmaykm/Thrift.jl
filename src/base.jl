@@ -62,10 +62,11 @@ thrift_type{T<:Set}(::Type{T})      = int32(14)
 thrift_type{T<:Array}(::Type{T})    = int32(15)
 thrift_type(::Type{TUTF8})          = int32(16)
 thrift_type(::Type{TUTF16})         = int32(17)
+thrift_type(::Type{String})         = int32(16)
 
 const _container_type_ids = [TType.STRUCT, TType.MAP, TType.SET, TType.LIST]
 const _container_types    = [TSTRUCT, TMAP, TSET, TLIST]
-iscontainer(typ::Int32)   = (typ in _container_type_ids)
+iscontainer(typ::Integer)   = (int32(typ) in _container_type_ids)
 iscontainer{T}(typ::Type{T})    = iscontainer(thrift_type(typ))
 
 ##
@@ -100,7 +101,7 @@ for _typ in _TJTypes
     end
 end
 
-writeMessageBegin(p::TProtocol, name::String, ttype::Int32, seqid::Integer)    = nothing
+writeMessageBegin(p::TProtocol, name::String, mtype::Int32, seqid::Integer)    = nothing
 writeMessageEnd(p::TProtocol)                                                  = nothing
 writeStructBegin(p::TProtocol, name::String)                                   = nothing
 writeStructEnd(p::TProtocol)                                                   = nothing
@@ -139,10 +140,11 @@ readI16(p::TProtocol)              = read(p, TI16)
 readI32(p::TProtocol)              = read(p, TI32)
 readI64(p::TProtocol)              = read(p, TI64)
 readDouble(p::TProtocol)           = read(p, TDOUBLE)
-readString(p::TProtocol)           = read(p, ByteString)
+readString(p::TProtocol)           = read(p, UTF8String)
 
 
 function skip(p::TProtocol, ::Type{TSTRUCT})
+    logmsg("skip TSTRUCT")
     name = readStructBegin(p)
     while true
         (name, ttype, id) = readFieldBegin(p)
@@ -154,22 +156,35 @@ function skip(p::TProtocol, ::Type{TSTRUCT})
     return
 end
 
-function read(p::TProtocol, ::Type{TSTRUCT}, val=nothing)
+function read(p::TProtocol, t::Type{TSTRUCT}, val=nothing)
+    (t == Any) && (val != nothing) && (t = typeof(val))
     name = readStructBegin(p)
-    structtyp = eval(symbol(name)) 
+    (t == Any) && (name != nothing) && (t = eval(symbol(name)))
+
+    (t == Any) && error("can not read unknown struct type")
     if val == nothing 
-        val = instantiate(structtyp)
+        val = instantiate(t)
     else
-        !issubtype(typeof(val), structtyp) && error("can not read $structtyp into $(typeof(val))")
+        !issubtype(typeof(val), t) && error("can not read $t into $(typeof(val))")
     end
 
+    logmsg("read TSTRUCT $t")
+
+    m = meta(t)
+    logmsg("struct meta: $m")
+    fillunset(val)
     while true
-        (name, ttype, id) = readFieldBegin(p)
-        fldname = symbol(name)
-        (ttype == TType.STOP) && break
-        jtyp = julia_type(ttype)
-        if iscontainer(ttype)
-            if !isdefined(val, fldname) 
+        (name, ttyp, id) = readFieldBegin(p)
+        (ttyp == TType.STOP) && break
+
+        attribs = m.numdict[int(id)]
+        (ttyp != attribs.ttyp) && error("can not read field of type $ttyp into type $(attribs.ttyp)")
+        (nothing != name) && (symbol(name) != attribs.fld) && error("field names do not match. got $(name), have $(attribs.fld)")
+
+        jtyp = julia_type(attribs)
+        fldname = attribs.fld
+        if iscontainer(ttyp)
+            if !isdefined(val, fldname)
                 setfield!(val, fldname, read(p, jtyp))
             else
                 read(p, jtyp, getfield(val, fldname))
@@ -177,28 +192,32 @@ function read(p::TProtocol, ::Type{TSTRUCT}, val=nothing)
         else
             setfield!(val, fldname, read(p, jtyp))
         end
+        fillset(val, fldname)
     end
     readStructEnd(p)
     val
 end
 
 function write(p::TProtocol, val::TSTRUCT)
-    structtyp = typeof(val)
-    writeStructBegin(p, string(structtyp))
-    names = structtyp.names
-    types = structtyp.types
+    t = typeof(val)
+    m = meta(t)
+    logmsg("write TSTRUCT $t")
+    logmsg("struct meta: $m")
+    writeStructBegin(p, string(t))
 
-    # TODO: need meta and fill information
-    for idx in 1:length(names)
-        writeFieldBegin(p, string(names[idx]), thrift_type(types[idx]), idx)
-        write(p, getfield(val, names[idx]))
+    for attrib in m.ordered
+        !isfilled(val, attrib.fld) && continue
+        writeFieldBegin(p, string(attrib.fld), attrib.ttyp, attrib.fldnum)
+        write(p, getfield(val, attrib.fld))
         writeFieldEnd(p)
     end
+    writeFieldStop(p)
     writeStructEnd(p)
     nothing
 end
 
 function skip(p::TProtocol, ::Type{TMAP})
+    logmsg("skip TMAP")
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
@@ -214,6 +233,8 @@ function read(p::TProtocol, ::Type{TMAP}, val=nothing)
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
+
+    logmsg("read TMAP key: $jktype, val: $jvtype")
 
     if val == nothing
         val = Dict{jktype,jvtype}()
@@ -233,6 +254,7 @@ end
 
 function write(p::TProtocol, val::TMAP)
     (ktype,vtype) = eltype(val)
+    logmsg("write TMAP key: $ktype, val: $vtype")
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
         write(p, k)
@@ -242,6 +264,7 @@ function write(p::TProtocol, val::TMAP)
 end
 
 function skip(p::TProtocol, ::Type{TSET})
+    logmsg("skip TSET")
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -252,6 +275,7 @@ end
 
 function read(p::TProtocol, ::Type{TSET}, val=nothing)
     (etype, size) = readSetBegin(p)
+    logmsg("read TSET, etype: $etype, size: $size")
     jetype = julia_type(etype)
     if val == nothing
         val = Set{jetype}()
@@ -267,15 +291,25 @@ function read(p::TProtocol, ::Type{TSET}, val=nothing)
 end
 
 function write(p::TProtocol, val::TSET)
-    writeSetBegin(p, thrift_type(eltype(val)), length(val))
-    # TODO: need meta to convert type correctly
-    for v in val
-        write(p, v)
+    jetype = eltype(val)
+    tetype = thrift_type(jetype)
+    logmsg("write TSET, etype: $jetype, size: $(length(val))")
+    writeSetBegin(p, tetype, length(val))
+
+    if iscontainer(tetype)
+        for v in val
+            write(p, jetype, v)
+        end
+    else
+        for v in val
+            write(p, v)
+        end
     end
     writeSetEnd(p)
 end
 
 function skip(p::TProtocol, ::Type{TLIST})
+    logmsg("skip TLIST")
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -287,6 +321,7 @@ end
 function read(p::TProtocol, ::Type{TLIST}, val=nothing)
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
+    logmsg("read TLIST, etype: $jetype, size: $size")
     if val == nothing
         val = Array(jetype,0)
     else
@@ -300,6 +335,7 @@ function read(p::TProtocol, ::Type{TLIST}, val=nothing)
 end
 
 function write(p::TProtocol, val::TLIST)
+    logmsg("write TLIST, etype: $(eltype(val)), size: $(length(val))")
     writeListBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
     for v in val
@@ -364,4 +400,179 @@ type _enum_TMessageType
 end 
 
 const MessageType = _enum_TMessageType(1, 2, 3, 4)
+
+
+
+##
+# Thrift Structure Metadata
+
+type ThriftMetaAttribs
+    fldnum::Int                     # the field number in the structure
+    fld::Symbol
+    ttyp::Int32                     # thrift type
+    required::Bool                  # required or optional
+    default::Array                  # the default value, empty array if none is specified, first element is used if something is specified
+    elmeta::Array{Any,1}            # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
+end
+
+type ThriftMeta
+    jtype::Type
+    symdict::Dict{Symbol,ThriftMetaAttribs}
+    numdict::Dict{Int,ThriftMetaAttribs}
+    ordered::Array{ThriftMetaAttribs,1}
+
+    ThriftMeta(jtype::Type, ordered::Array{ThriftMetaAttribs,1}) = _setmeta(new(), jtype, ordered)
+end
+
+function _setmeta(meta::ThriftMeta, jtype::Type, ordered::Array{ThriftMetaAttribs,1})
+    symdict = Dict{Symbol,ThriftMetaAttribs}()
+    numdict = Dict{Int,ThriftMetaAttribs}()
+    for attrib in ordered
+        symdict[attrib.fld] = numdict[attrib.fldnum] = attrib
+    end
+    meta.jtype = jtype
+    meta.symdict = symdict
+    meta.numdict = numdict
+    meta.ordered = ordered
+    meta
+end
+
+function julia_type(fattr::ThriftMetaAttribs)
+    ttyp = fattr.ttyp
+    !iscontainer(ttyp) && (return julia_type(ttyp))
+
+    elmeta = fattr.elmeta
+    if ttype == TType.STRUCT
+        return elmeta[1].jtype
+    elseif ttyp == TTypes.LIST
+        return Array{elmeta[1].jtype, 1}
+    elseif ttyp == TTypes.SET
+        return Set{elmeta[1].jtype}
+    elseif ttyp == TTypes.MAP
+        return Dict{elmeta[1].jtype, elmeta[2].jtype}
+    end
+    error("unknown type $ttyp in field attributes")
+end
+
+
+const _metacache = Dict{Type, ThriftMeta}()
+const _fillcache = Dict{Uint, Array{Symbol,1}}()
+
+meta(typ::Type) = meta(typ, Symbol[], Int[], Dict{Symbol,Any}())
+function meta(typ::Type, required::Array, numbers::Array, defaults::Dict, cache::Bool=true)
+    d = Dict{Symbol,Any}()
+    for (k,v) in defaults
+        d[k] = v
+    end
+    meta(typ, convert(Array{Symbol,1}, required), convert(Array{Int,1}, numbers), d, cache)
+end
+function meta(typ::Type, required::Array{Symbol,1}, numbers::Array{Int,1}, defaults::Dict{Symbol,Any}, cache::Bool=true)
+    haskey(_metacache, typ) && return _metacache[typ]
+
+    m = ThriftMeta(typ, ThriftMetaAttribs[])
+    cache ? (_metacache[typ] = m) : m
+
+    attribs = ThriftMetaAttribs[]
+    names = typ.names
+    types = typ.types
+    for fldidx in 1:length(names)
+        fldtyp = types[fldidx]
+        fldttyp = thrift_type(fldtyp)
+        fldname = names[fldidx]
+        fldnum = int(isempty(numbers) ? fldidx : numbers[fldidx])
+        fldrequired = (fldname in required)
+
+        elmeta = ThriftMeta[]
+        if fldttyp == TType.STRUCT
+            push!(elmeta, meta(fldtyp))
+        elseif fldttyp == TType.LIST
+            push!(elmeta, meta(fldtyp.parameters[1]))
+        elseif fldttyp == TType.SET
+            push!(elmeta, meta(fldtyp.parameters[1]))
+        elseif fldttyp == TType.MAP
+            push!(elmeta, meta(fldtyp.parameters[1]))   # key
+            push!(elmeta, meta(fldtyp.parameters[2]))   # value
+        end
+
+        default = haskey(defaults, fldname) ? {defaults[fldname]} : []
+
+        push!(attribs, ThriftMetaAttribs(fldnum, fldname, fldttyp, fldrequired, default, elmeta))
+    end
+    _setmeta(m, typ, attribs)
+    m
+end
+
+function show(io::IO, m::ThriftMeta)
+    println(io, "ThriftMeta for $(m.jtype)")
+    println(io, m.ordered)
+end
+
+
+fillunset(obj) = (empty!(filled(obj)); nothing)
+function fillunset(obj, fld::Symbol)
+    fill = filled(obj)
+    idx = findfirst(fill, fld)
+    (idx > 0) && splice!(fill, idx)
+    nothing
+end
+
+function fillset(obj, fld::Symbol)
+    fill = filled(obj)
+    idx = findfirst(fill, fld)
+    (idx > 0) && return
+    push!(fill, fld)
+    nothing
+end
+
+function filled(obj)
+    oid = object_id(obj)
+    haskey(_fillcache, oid) && return _fillcache[oid]
+
+    fill = Symbol[]
+    for fldname in names(typeof(obj))
+        isdefined(obj, fldname) && push!(fill, fldname)
+    end
+    if !isimmutable(obj)
+        _fillcache[oid] = fill
+        finalizer(obj, obj->delete!(_fillcache, object_id(obj)))
+    end
+    fill
+end
+
+isfilled(obj, fld::Symbol) = (fld in filled(obj))
+function isfilled(obj)
+    fill = filled(obj)
+    flds = meta(typeof(obj)).ordered
+    for fld in flds
+        if fld.required
+            !(fld.fld in fill) && (return false)
+            (fld.meta != nothing) && !isfilled(getfield(obj, fld.fld)) && (return false)
+        end
+    end
+    true
+end
+
+
+##
+# utility methods
+# utility methods
+function copy!(to::Any, from::Any)
+    totype = typeof(to)
+    fromtype = typeof(from)
+    (totype != fromtype) && error("Can't copy a type $fromtype to $totype")
+    fillunset(to)
+    for name in totype.names
+        if isfilled(from, name)
+            setfield!(to, name, getfield(from, name))
+            fillset(to, name)
+        end
+    end
+    nothing
+end
+
+isinitialized(obj::Any) = isfilled(obj)
+set_field(obj::Any, fld::Symbol, val) = (setfield!(obj, fld, val); fillset(obj, fld); nothing)
+get_field(obj::Any, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("uninitialized field $fld")
+clear = fillunset
+has_field(obj::Any, fld::Symbol) = isfilled(obj, fld)
 

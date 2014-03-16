@@ -19,7 +19,7 @@
 #    tp::ThriftProcessor
 #    function CalculatorProcessor()
 #        p = new(ThriftProcessor())
-#        handle(p.tp, ThriftHandler("calculate", p, _calculate, CalculatorInput, CalculatorOutput))
+#        handle(p.tp, ThriftHandler("calculate", _calculate, CalculatorInput, CalculatorOutput))
 #        p
 #    end
 #    _calculate(inp::CalculatorInput) = CalculatorOutput(calculate(inp.logid))
@@ -67,30 +67,41 @@ end
 
 type ThriftProcessor
     handlers::Dict{String, ThriftHandler}
-    ThriftProcessor() = new(Dict{String, Function}())
+    ThriftProcessor() = new(Dict{String, ThriftHandler}())
 end
 
 handle(p::ThriftProcessor, handler::ThriftHandler) = (p.handlers[handler.name] = handler; nothing)
 
+function raise_exception(extyp::Int32, exmsg::String, outp::TProtocol, name::String, seqid::Int32)
+    x = TApplicationException(extyp, exmsg)
+    writeMessageBegin(outp, name, MessageType.EXCEPTION, seqid)
+    write(outp, x)
+    writeMessageEnd(outp)
+    flush(outp.t)
+end
+
 function process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol)
+    logmsg("process begin")
     (name, typ, seqid) = readMessageBegin(inp)
     if !haskey(p.handlers, name)
         skip(inp, TSTRUCT)
         readMessageEnd(inp)
-        x = TApplicationException(ApplicationExceptionType.UNKNOWN_METHOD, "Unknown function $name")
-        writeMessageBegin(name, MessageType.EXCEPTION, seqid)
-        write(outp, x)
-        writeMessageEnd(outp)
-        flush(outp.t)
+        raise_exception(ApplicationExceptionType.UNKNOWN_METHOD, "Unknown function $name", outp, name, seqid)
         return
     end
 
     handler = p.handlers[name]
-    instruct = read(inp, handler.intyp)
+    instruct = read(inp, TSTRUCT, instantiate(handler.intyp))
     readMessageEnd(inp)
+    logmsg("process calling handler function")
     outstruct = handler.fn(instruct)
+    logmsg("process out of handler function. return val: $outstruct")
+    if !isa(outstruct, handler.outtyp)
+        raise_exception(ApplicationExceptionType.MISSING_RESULT, "Invalid return type. Expected $(handler.outtyp). Got $(typeof(outstruct))", outp, name, seqid)
+        return
+    end
 
-    writeMessageBegin(outp, name, TSTRUCT, seqid)
+    writeMessageBegin(outp, name, MessageType.REPLY, seqid)
     write(outp, outstruct)
     writeMessageEnd(outp)
     flush(outp.t)

@@ -81,7 +81,7 @@ typealias TSocketBase Union(TSocket, TServerSocket)
 open(tsock::TServerSocket) = nothing
 open(tsock::TSocket) = (!isopen(tsock) && (tsock.io = connect(tsock.host, tsock.port)); nothing)
 
-listen(tsock::TServerSocket) = (tsock.io = isempty(tsock.host) ? listen(tsock.host, port) : listen(port); nothing)
+listen(tsock::TServerSocket) = (tsock.io = isempty(tsock.host) ? listen(tsock.port) : listen(parseip(tsock.host), tsock.port); nothing)
 function accept(tsock::TServerSocket) 
     accsock = TSocket(tsock.host, tsock.port)
     accsock.io = accept(tsock.io)
@@ -93,6 +93,6 @@ rawio(tsock::TSocketBase) = tsock.io
 read(tsock::TSocketBase, buff::Array{Uint8,1}) = (read(tsock.io, buff); buff)
 write(tsock::TSocketBase, buff::Array{Uint8,1}) = write(tsock.io, buff)
 flush(tsock::TSocketBase) = flush(tsock.io)
-isopen(tsock::TSocketBase) = (isdefined(tsock.io) && isreadable(tsock.io) && iswritable(tsock.io))
+isopen(tsock::TSocketBase) = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
 
 

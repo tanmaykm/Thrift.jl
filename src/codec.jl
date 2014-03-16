@@ -1,3 +1,5 @@
+const MASK8 = 0xff
+
 function _write_fixed{T <: Unsigned}(io, ux::T, bigendian::Bool)
     N = sizeof(ux)
     a = Array(Uint8, N)
