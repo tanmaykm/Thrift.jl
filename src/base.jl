@@ -459,14 +459,14 @@ const _metacache = Dict{Type, ThriftMeta}()
 const _fillcache = Dict{Uint, Array{Symbol,1}}()
 
 meta(typ::Type) = meta(typ, Symbol[], Int[], Dict{Symbol,Any}())
-function meta(typ::Type, required::Array, numbers::Array, defaults::Dict, cache::Bool=true)
+function meta(typ::Type, optional::Array, numbers::Array, defaults::Dict, cache::Bool=true)
     d = Dict{Symbol,Any}()
     for (k,v) in defaults
         d[k] = v
     end
-    meta(typ, convert(Array{Symbol,1}, required), convert(Array{Int,1}, numbers), d, cache)
+    meta(typ, convert(Array{Symbol,1}, optional), convert(Array{Int,1}, numbers), d, cache)
 end
-function meta(typ::Type, required::Array{Symbol,1}, numbers::Array{Int,1}, defaults::Dict{Symbol,Any}, cache::Bool=true)
+function meta(typ::Type, optional::Array{Symbol,1}, numbers::Array{Int,1}, defaults::Dict{Symbol,Any}, cache::Bool=true)
     haskey(_metacache, typ) && return _metacache[typ]
 
     m = ThriftMeta(typ, ThriftMetaAttribs[])
@@ -480,7 +480,7 @@ function meta(typ::Type, required::Array{Symbol,1}, numbers::Array{Int,1}, defau
         fldttyp = thrift_type(fldtyp)
         fldname = names[fldidx]
         fldnum = int(isempty(numbers) ? fldidx : numbers[fldidx])
-        fldrequired = (fldname in required)
+        fldrequired = !(fldname in optional)
 
         elmeta = ThriftMeta[]
         if fldttyp == TType.STRUCT
