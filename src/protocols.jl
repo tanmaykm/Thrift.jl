@@ -121,7 +121,7 @@ read(p::TBinaryProtocol, ::Type{TI16}) = reinterpret(TI16, _read_fixed(rawio(p.t
 read(p::TBinaryProtocol, ::Type{TI32}) = reinterpret(TI32, _read_fixed(rawio(p.t), uint32(0), 4, true))
 read(p::TBinaryProtocol, ::Type{TI64}) = reinterpret(TI64, _read_fixed(rawio(p.t), uint64(0), 8, true))
 read(p::TBinaryProtocol, ::Type{TDOUBLE}) = reinterpret(TDOUBLE, _read_fixed(rawio(p.t), uint64(0), 1, true))
-read(p::TBinaryProtocol, a::Array{Uint8,1}) = read(rawio(p.t), a)
+read(p::TBinaryProtocol, a::Array{Uint8,1}) = read!(rawio(p.t), a)
 read(p::TBinaryProtocol, ::Type{ASCIIString}) = bytestring(read(p, Array(Uint8, readI32(p))))
 read(p::TBinaryProtocol, ::Type{UTF8String}) = bytestring(read(p, Array(Uint8, readI32(p))))
 
