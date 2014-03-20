@@ -62,6 +62,10 @@ public:
 	std::string jl_imports();
 	void generate_module_begin();
 	void generate_module_end();
+	void generate_service_args_and_returns(t_service* tservice);
+	void generate_service_processor(t_service* tservice);
+	void generate_service_user_function_comments(t_service* tservice);
+	void generate_service_client(t_service* tservice);
 	void add_to_module(t_service* tservice);
 
 private:
@@ -454,47 +458,7 @@ void t_jl_generator::add_to_module(t_service* tservice) {
 	module_exports_ << " # service " << service_name_ << endl;
 }
 
-/**
- * Generates a thrift service.
- *
- * @param tservice The service definition
- */
-void t_jl_generator::generate_service(t_service* tservice) {
-	string f_service_name = program_dir_ + "/" + service_name_ + ".jl";
-
-	f_service_.open(f_service_name.c_str());
-	f_service_ << jl_autogen_comment() << endl;
-
-	t_service* extends_service = tservice->get_extends();
-	if (extends_service != NULL) {
-		f_service_ << "# service extends " << extends_service->get_name() << endl;
-	}
-
-	f_service_ << endl << endl;
-
-	vector<t_function*> functions = tservice->get_functions();
-	vector<t_function*>::iterator f_iter;
-	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-		t_function* tfunction = (*f_iter);
-		t_type* ttype = tfunction->get_returntype();
-		t_struct* arglist = tfunction->get_arglist();
-
-		indent(f_service_) << "# types encapsulating arguments and return values of method " << tfunction->get_name() << endl;
-		generate_jl_struct(f_service_, arglist, false);
-		f_service_ << endl;
-
-		indent(f_service_) << "type " << tfunction->get_name() << "_ret" << endl;
-		indent_up();
-		if(!ttype->is_void()) {
-			indent(f_service_) << "res::" << julia_type(ttype) << endl;
-			indent(f_service_) << tfunction->get_name() << "_ret() = (o=new(); fillunset(o); o)" << endl;
-			indent(f_service_) << tfunction->get_name() << "_ret(res) = (o=new(); fillset(o, :res); o.res=res; o)" << endl;
-		}
-		indent_down();
-		indent(f_service_) << "end # type " << tfunction->get_name() << "_ret" << endl << endl;
-	}
-
-	f_service_ << endl << endl;
+void t_jl_generator::generate_service_processor(t_service* tservice) {
 	indent(f_service_) << "# Processor for " << service_name_ << " service (to be used in server implementation)" << endl;
 	f_service_ << "type " << service_name_ << "Processor <: TProcessor" << endl;
 	indent_up();
@@ -503,11 +467,13 @@ void t_jl_generator::generate_service(t_service* tservice) {
 	indent_up();
 	indent(f_service_) << "p = new(ThriftProcessor())" << endl;
 
+	vector<t_function*> functions = tservice->get_functions();
+	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		string fname = tfunction->get_name();
 
-		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << fname << "_ret))" << endl;
+		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << fname << "_result))" << endl;
 	}
 
 	indent(f_service_) << "p" << endl;
@@ -519,9 +485,62 @@ void t_jl_generator::generate_service(t_service* tservice) {
 		t_struct* arglist = tfunction->get_arglist();
 		string fname = tfunction->get_name();
 		t_type* ttype = tfunction->get_returntype();
+		t_struct* xceptions = tfunction->get_xceptions();
+		bool has_xceptions = !xceptions->get_members().empty();
 
-		if(!ttype->is_void()) {
-			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = " << fname << "_ret(" << fname << "(";
+		if(has_xceptions) {
+			indent(f_service_) << "function _" << fname << "(inp::" << fname << "_args)" << endl;
+			indent_up();
+			indent(f_service_) << "try" << endl;
+			indent_up();
+
+			if(!ttype->is_void()) {
+				indent(f_service_) << "result = " << fname << "(";
+			}
+			else {
+				indent(f_service_) << fname << "(";
+			}
+
+			const vector<t_field*>& members = arglist->get_members();
+			vector<t_field*>::const_iterator m_iter;
+			bool first = true;
+			for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
+				if (first) {
+					first = false;
+				} else {
+					f_service_ << ", ";
+				}
+				t_field* fld= (*m_iter);
+				f_service_ << "inp." << fld->get_name();
+			}
+			f_service_ << ")" << endl;
+			if(!ttype->is_void()) {
+				indent(f_service_) << "return " << fname << "_result(result)" << endl;
+			}
+			else {
+				indent(f_service_) << "return " << fname << "_result()" << endl;
+			}
+			indent_down();
+			indent(f_service_) << "catch ex" << endl;
+			indent_up();
+
+			indent(f_service_) << "exret = " << fname << "_result()" << endl;
+
+			const vector<t_field*>& xmembers = xceptions->get_members();
+			vector<t_field*>::const_iterator x_iter;
+			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
+				t_field* fld= (*x_iter);
+				indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field(exret, :" << fld->get_name() << ", ex); return exret)" << endl;
+			}
+
+			indent(f_service_) << "rethrow()" << endl;
+			indent_down();
+			indent(f_service_) << "end # try" << endl;
+			indent_down();
+			indent(f_service_) << "end #function _" << fname << endl;
+		}
+		else if(!ttype->is_void()) {
+			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = " << fname << "_result(" << fname << "(";
 
 			const vector<t_field*>& members = arglist->get_members();
 			vector<t_field*>::const_iterator m_iter;
@@ -538,15 +557,19 @@ void t_jl_generator::generate_service(t_service* tservice) {
 			f_service_ << "))" << endl;
 		}
 		else {
-			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << fname << "_ret())" << endl;
+			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << fname << "_result())" << endl;
 		}
 	}
 
 	indent_down();
 	f_service_ << "end # type " << service_name_ << "Processor" << endl;
-	f_service_ << "process(p::" << service_name_ << "Processor, inp::TProtocol, outp::TProtocol) = process(p.tp, inp, outp)" << endl << endl;
+	f_service_ << "process(p::" << service_name_ << "Processor, inp::TProtocol, outp::TProtocol) = process(p.tp, inp, outp)" << endl;
+}
 
+void t_jl_generator::generate_service_user_function_comments(t_service* tservice) {
 	f_service_ << "# Server side methods to be defined by user:" << endl;
+	vector<t_function*> functions = tservice->get_functions();
+	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		t_type* ttype = tfunction->get_returntype();
@@ -580,8 +603,9 @@ void t_jl_generator::generate_service(t_service* tservice) {
 			}
 		}
 	}
-	f_service_ << endl << endl;
+}
 
+void t_jl_generator::generate_service_client(t_service* tservice) {
 	f_service_ << "# Client implementation for " << service_name_ << " service" << endl;
 	string service_name_client = (service_name_ + "Client");
 	f_service_ << "type " << service_name_client << endl;
@@ -592,12 +616,15 @@ void t_jl_generator::generate_service(t_service* tservice) {
 	indent_down();
 	f_service_ << "end # type " << service_name_client << endl << endl;
 
-
+	vector<t_function*> functions = tservice->get_functions();
+	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* arglist = tfunction->get_arglist();
 		string fname = tfunction->get_name();
+		t_struct* xceptions = tfunction->get_xceptions();
+		bool has_xceptions = !xceptions->get_members().empty();
 
 		f_service_ << "# Client callable method for " << fname << endl;
 		f_service_ << "function " << fname << "(c::" << service_name_client;
@@ -628,20 +655,114 @@ void t_jl_generator::generate_service(t_service* tservice) {
 
 		indent(f_service_) << "(fname, mtype, rseqid) = readMessageBegin(p)" << endl;
 		indent(f_service_) << "(mtype == MessageType.EXCEPTION) && throw(read(p, TSTRUCT, TApplicationException()))" << endl;
-		indent(f_service_) << "outp = read(p, TSTRUCT, " << fname << "_ret())" << endl;
+		indent(f_service_) << "outp = read(p, TSTRUCT, " << fname << "_result())" << endl;
 		indent(f_service_) << "readMessageEnd(p)" << endl;
 		indent(f_service_) << "(rseqid != c.seqid) && throw(TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
+
+		if(has_xceptions) {
+			const vector<t_field*>& xmembers = xceptions->get_members();
+			vector<t_field*>::const_iterator x_iter;
+			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
+				t_field* fld= (*x_iter);
+				indent(f_service_) << "has_field(outp, :" << fld->get_name() << ") && throw(get_field(outp, :" << fld->get_name() << "))" << endl;
+			}
+		}
 
 		if (ttype->is_void()) {
 			indent(f_service_) << "nothing" << endl;
 		}
 		else {
-			indent(f_service_) << "has_field(outp, :res) && (return get_field(outp, :res))" << endl;
+			indent(f_service_) << "has_field(outp, :success) && (return get_field(outp, :success))" << endl;
 			indent(f_service_) << "throw(TApplicationException(ApplicationExceptionType.MISSING_RESULT, \"retrieve failed: unknown result\"))" << endl;
 		}
 		indent_down();
 		f_service_ << "end # function " << fname << endl << endl;
 	}
+}
+
+
+void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
+	vector<t_function*> functions = tservice->get_functions();
+	vector<t_function*>::iterator f_iter;
+	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
+		t_function* tfunction = (*f_iter);
+		t_type* ttype = tfunction->get_returntype();
+		t_struct* arglist = tfunction->get_arglist();
+		t_struct* xceptions = tfunction->get_xceptions();
+		bool has_xceptions = !xceptions->get_members().empty();
+
+		indent(f_service_) << "# types encapsulating arguments and return values of method " << tfunction->get_name() << endl;
+		generate_jl_struct(f_service_, arglist, false);
+		f_service_ << endl;
+
+		indent(f_service_) << "type " << tfunction->get_name() << "_result" << endl;
+		indent_up();
+		if(!ttype->is_void()) {
+			indent(f_service_) << "success::" << julia_type(ttype) << endl;
+		}
+
+		bool first = true;
+		std::ostringstream result_fld_names;
+		std::ostringstream result_fld_ids;
+		if(!ttype->is_void()) {
+			result_fld_names << ":success";
+			result_fld_ids << "0";
+			first = false;
+		}
+		if(has_xceptions) {
+			const vector<t_field*>& xmembers = xceptions->get_members();
+			vector<t_field*>::const_iterator x_iter;
+			int xid = 1;
+			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
+				t_field* fld= (*x_iter);
+				if(first) {
+					first = false;
+				}
+				else {
+					result_fld_names << ", ";
+					result_fld_ids << ", ";
+				}
+				indent(f_service_) << fld->get_name() << "::" << julia_type(fld->get_type()) << endl;
+				result_fld_names << ":" << fld->get_name();
+				result_fld_ids << xid++;
+			}
+		}
+
+		if(!ttype->is_void()) {
+			indent(f_service_) << tfunction->get_name() << "_result() = (o=new(); fillunset(o); o)" << endl;
+			indent(f_service_) << tfunction->get_name() << "_result(success) = (o=new(); fillset(o, :success); o.success=success; o)" << endl;
+		}
+
+		indent_down();
+		indent(f_service_) << "end # type " << tfunction->get_name() << "_result" << endl;
+		indent(f_service_) << "meta(t::Type{" << tfunction->get_name() << "_result}) = meta(t, Symbol[" << result_fld_names.str() << "], Int[" << result_fld_ids.str() << "], Dict{Symbol,Any}())" << endl << endl;
+	}
+}
+
+/**
+ * Generates a thrift service.
+ *
+ * @param tservice The service definition
+ */
+void t_jl_generator::generate_service(t_service* tservice) {
+	string f_service_name = program_dir_ + "/" + service_name_ + ".jl";
+
+	f_service_.open(f_service_name.c_str());
+	f_service_ << jl_autogen_comment() << endl;
+
+	t_service* extends_service = tservice->get_extends();
+	if (extends_service != NULL) {
+		f_service_ << "# service extends " << extends_service->get_name() << endl;
+	}
+
+	f_service_ << endl << endl;
+	generate_service_args_and_returns(tservice);
+	f_service_ << endl << endl;
+	generate_service_processor(tservice);
+	f_service_ << endl << endl;
+	generate_service_user_function_comments(tservice);
+	f_service_ << endl << endl;
+	generate_service_client(tservice);
 
 	// accumulate exports and includes for module file
 	add_to_module(tservice);

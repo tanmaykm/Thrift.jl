@@ -41,10 +41,10 @@ include("processor.jl")
 include("server.jl")
 
 # enable logging only during debugging
-using Logging
-const logger = Logging.configure(filename="thrift.log", level=DEBUG)
-logmsg(s) = debug(s)
-#logmsg(s) = nothing
+#using Logging
+#const logger = Logging.configure(filename="thrift.log", level=DEBUG)
+#logmsg(s) = debug(s)
+logmsg(s) = nothing
 
 # Julia 0.2 compatibility patch
 if isless(Base.VERSION, v"0.3.0-")
