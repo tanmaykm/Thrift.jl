@@ -5,7 +5,15 @@ include("gen-jl/arithmetic/constants.jl");
 include("gen-jl/arithmetic/types.jl");
 include("gen-jl/arithmetic/Calc.jl");
 
-calculate(oper::String, p1::Int32, p2::Int32) = convert(Int32, (eval(symbol(oper)))(p1, p2))
+function calculate(oper::String, p1::Int32, p2::Int32) 
+    ret = (eval(symbol(oper)))(p1, p2)
+    if ret > (2^31 - 1) 
+        ex = InvalidOperation()
+        set_field(ex, :oper, "$oper($p1, $p2) overflows")
+        throw(ex)
+    end
+    ret
+end
 
 function calcsrvr()
     cp = CalcProcessor()

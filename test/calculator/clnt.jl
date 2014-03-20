@@ -16,13 +16,19 @@ function calcclnt(niter::Int)
     println("opened connection. $(clnt_transport)")
     nops = length(OPS)
     for idx in 1:niter
-        op = string(OPS[int((nops-1)*rand())+1])
-        p1 = int32(100*rand())
-        p2 = int32(100*rand())
-        res = calculate(clnt, op, p1, p2)
-        println("$op ( $p1, $p2 ) = $res")
+        try
+            op = string(OPS[int((nops-1)*rand())+1])
+            p1 = int32(100*rand())
+            p2 = int32(100*rand())
+            res = calculate(clnt, op, p1, p2)
+            println("$op ( $p1, $p2 ) = $res")
+        catch ex
+            !isa(ex, InvalidOperation) && rethrow()
+            println(ex.oper)
+        end
     end
     close(clnt_transport)
+    println("closed connection. $(clnt_transport)")
 end
 
 for idx in 1:5

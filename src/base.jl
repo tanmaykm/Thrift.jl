@@ -62,7 +62,7 @@ thrift_type{T<:Set}(::Type{T})      = int32(14)
 thrift_type{T<:Array}(::Type{T})    = int32(15)
 thrift_type(::Type{TUTF8})          = int32(16)
 thrift_type(::Type{TUTF16})         = int32(17)
-thrift_type(::Type{String})         = int32(16)
+thrift_type(::Type{String})         = int32(11)
 
 const _container_type_ids = [TType.STRUCT, TType.MAP, TType.SET, TType.LIST]
 const _container_types    = [TSTRUCT, TMAP, TSET, TLIST]
@@ -156,7 +156,7 @@ function skip(p::TProtocol, ::Type{TSTRUCT})
     return
 end
 
-function read(p::TProtocol, t::Type{TSTRUCT}, val=nothing)
+function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
     (t == Any) && (val != nothing) && (t = typeof(val))
     name = readStructBegin(p)
     (t == Any) && (name != nothing) && (t = eval(symbol(name)))
@@ -178,7 +178,7 @@ function read(p::TProtocol, t::Type{TSTRUCT}, val=nothing)
         (ttyp == TType.STOP) && break
 
         attribs = m.numdict[int(id)]
-        (ttyp != attribs.ttyp) && error("can not read field of type $ttyp into type $(attribs.ttyp)")
+        (ttyp != attribs.ttyp) && !((attribs.ttyp == TType.UTF8) && (ttyp == TType.STRING)) && error("can not read field of type $ttyp into type $(attribs.ttyp)")
         (nothing != name) && (symbol(name) != attribs.fld) && error("field names do not match. got $(name), have $(attribs.fld)")
 
         jtyp = julia_type(attribs)
@@ -442,7 +442,7 @@ function julia_type(fattr::ThriftMetaAttribs)
     !iscontainer(ttyp) && (return julia_type(ttyp))
 
     elmeta = fattr.elmeta
-    if ttype == TType.STRUCT
+    if ttyp == TType.STRUCT
         return elmeta[1].jtype
     elseif ttyp == TTypes.LIST
         return Array{elmeta[1].jtype, 1}
