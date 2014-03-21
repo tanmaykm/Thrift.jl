@@ -80,7 +80,7 @@ write(p::TBinaryProtocol, i::TBYTE) = (_write_fixed(rawio(p.t), i, true); nothin
 write(p::TBinaryProtocol, i::TI16) = (_write_fixed(rawio(p.t), reinterpret(Uint16,i), true); nothing)
 write(p::TBinaryProtocol, i::TI32) = (_write_fixed(rawio(p.t), reinterpret(Uint32,i), true); nothing)
 write(p::TBinaryProtocol, i::TI64) = (_write_fixed(rawio(p.t), reinterpret(Uint64,i), true); nothing)
-write(p::TBinaryProtocol, d::TDOUBLE) = (_write_fixed(rawio(p.t), reinterpret(Uint64,i), true); nothing)
+write(p::TBinaryProtocol, d::TDOUBLE) = (_write_fixed(rawio(p.t), reinterpret(Uint64,d), true); nothing)
 write(p::TBinaryProtocol, a::Array{Uint8,1}) = write(rawio(p.t), a)
 write(p::TBinaryProtocol, s::ASCIIString) = (writeI32(p, length(s)); write(p, s.data); nothing)
 write(p::TBinaryProtocol, s::UTF8String) = (writeI32(p, length(s)); write(p, s.data); nothing)
@@ -91,13 +91,13 @@ function readMessageBegin(p::TBinaryProtocol)
     if sz < 0
         version = sz & BINARY_VERSION_MASK
         (version != BINARY_VERSION_1) && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "Bad version in readMessageBegin: $sz"))
-        typ = sz & BINARY_TYPE_MASK
+        typ = int32(sz & BINARY_TYPE_MASK)
         name = readString(p)
         seqid = readI32(p)
     else
         p.strictRead && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "No protocol version header"))
         name =  bytestring(read(p, Array(Uint8, sz)))
-        typ = readByte(p)
+        typ = int32(readByte(p))
         seqid = readI32(p)
     end
     logmsg("readMessageBegin read name: $name, mtyp: $typ, seqid: $seqid")
@@ -120,7 +120,7 @@ read(p::TBinaryProtocol, ::Type{TBYTE}) = _read_fixed(rawio(p.t), uint8(0), 1, t
 read(p::TBinaryProtocol, ::Type{TI16}) = reinterpret(TI16, _read_fixed(rawio(p.t), uint16(0), 2, true))
 read(p::TBinaryProtocol, ::Type{TI32}) = reinterpret(TI32, _read_fixed(rawio(p.t), uint32(0), 4, true))
 read(p::TBinaryProtocol, ::Type{TI64}) = reinterpret(TI64, _read_fixed(rawio(p.t), uint64(0), 8, true))
-read(p::TBinaryProtocol, ::Type{TDOUBLE}) = reinterpret(TDOUBLE, _read_fixed(rawio(p.t), uint64(0), 1, true))
+read(p::TBinaryProtocol, ::Type{TDOUBLE}) = reinterpret(TDOUBLE, _read_fixed(rawio(p.t), uint64(0), 8, true))
 read(p::TBinaryProtocol, a::Array{Uint8,1}) = read!(rawio(p.t), a)
 read(p::TBinaryProtocol, ::Type{ASCIIString}) = bytestring(read(p, Array(Uint8, readI32(p))))
 read(p::TBinaryProtocol, ::Type{UTF8String}) = bytestring(read(p, Array(Uint8, readI32(p))))

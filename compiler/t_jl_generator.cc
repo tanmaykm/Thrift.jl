@@ -79,6 +79,7 @@ private:
 	std::ofstream f_module_;
 
 	std::ostringstream module_exports_;
+	std::ostringstream module_using_;
 	std::ostringstream module_includes_;
 
 	std::string package_dir_;
@@ -100,10 +101,10 @@ void t_jl_generator::init_generator() {
 	MKDIR(program_dir_.c_str());
 
 	// Make output file
-	string f_types_name = program_dir_ + "/" + "types.jl";
+	string f_types_name = program_dir_ + "/" + program_name_ + "_types.jl";
 	f_types_.open(f_types_name.c_str());
 
-	string f_consts_name = program_dir_ + "/" + "constants.jl";
+	string f_consts_name = program_dir_ + "/" + program_name_ + "_constants.jl";
 	f_consts_.open(f_consts_name.c_str());
 
 	string f_mod_name = program_dir_ + "/" + program_name_ + ".jl";
@@ -126,9 +127,9 @@ void t_jl_generator::generate_module_end() {
 	f_module_ << endl << "export meta" << endl;
 	f_module_ << module_exports_.str() << endl;
 
-	f_module_ << "include(\"constants.jl\")" << endl;
-	f_module_ << "include(\"types.jl\")" << endl;
-	f_module_ << "include(\"impl.jl\")  # server methods to be hand coded" << endl;
+	f_module_ << "include(\"" << program_name_ << "_constants.jl\")" << endl;
+	f_module_ << "include(\"" << program_name_ << "_types.jl\")" << endl;
+	f_module_ << "include(\"" << program_name_ << "_impl.jl\")  # server methods to be hand coded" << endl;
 	f_module_ << module_includes_.str() << endl;
 
 	f_module_ << endl << "end # module " << program_name_ << endl;
@@ -191,7 +192,18 @@ string t_jl_generator::jl_autogen_comment() {
  * Prints standard thrift imports
  */
 string t_jl_generator::jl_imports() {
-	return string("using Thrift\nimport Thrift.process, Thrift.meta\n");
+	std::ostringstream out;
+
+	out << "using Thrift" << endl << "import Thrift.process, Thrift.meta" << endl << endl;
+
+	const vector<t_program*>& includes = program_->get_includes();
+	for (size_t i = 0; i < includes.size(); ++i) {
+		if(i > 0) (out << ", ");
+		else (out << "# import included programs" << endl << "using ");
+		out << includes[i]->get_name();
+	}
+	out << endl;
+	return out.str();
 }
 
 /**
@@ -444,12 +456,7 @@ void t_jl_generator::add_to_module(t_service* tservice) {
 
 	module_includes_ << "include(\"" << service_name_ << ".jl\")" << endl;
 
-	t_service* extends_service = tservice->get_extends();
-	if (extends_service != NULL) {
-		f_module_ << "# using " << extends_service->get_name() << endl;
-	}
-
-	module_exports_ << "export " << service_name_ << "Processor, " << service_name_ << "Client";
+	module_exports_ << "export " << service_name_ << "Processor, " << service_name_ << "Client, " << service_name_ << "ClientBase";
 	vector<t_function*> functions = tservice->get_functions();
 	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
@@ -474,6 +481,11 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 		string fname = tfunction->get_name();
 
 		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << fname << "_result))" << endl;
+	}
+
+	t_service* extends_service = tservice->get_extends();
+	if (extends_service != NULL) {
+		indent(f_service_) << "extend(p.tp, " << extends_service->get_name() << "Processor().tp) # using " << extends_service->get_name() << endl;
 	}
 
 	indent(f_service_) << "p" << endl;
@@ -608,7 +620,16 @@ void t_jl_generator::generate_service_user_function_comments(t_service* tservice
 void t_jl_generator::generate_service_client(t_service* tservice) {
 	f_service_ << "# Client implementation for " << service_name_ << " service" << endl;
 	string service_name_client = (service_name_ + "Client");
-	f_service_ << "type " << service_name_client << endl;
+
+	t_service* extends_service = tservice->get_extends();
+	if (extends_service == NULL) {
+		f_types_ << endl << "abstract " << service_name_client << "Base" << endl;
+	}
+	else {
+		f_types_ << endl << "typealias " << service_name_client << "Base " << extends_service->get_name() << "ClientBase" << endl;
+	}
+
+	f_service_ << "type " << service_name_client << " <: " << service_name_client << "Base" << endl;
 	indent_up();
 	indent(f_service_) << "p::TProtocol" << endl;
 	indent(f_service_) << "seqid::Int32" << endl;
@@ -627,7 +648,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		bool has_xceptions = !xceptions->get_members().empty();
 
 		f_service_ << "# Client callable method for " << fname << endl;
-		f_service_ << "function " << fname << "(c::" << service_name_client;
+		f_service_ << "function " << fname << "(c::" << service_name_client << "Base";
 
 		const vector<t_field*>& members = arglist->get_members();
 		vector<t_field*>::const_iterator m_iter;

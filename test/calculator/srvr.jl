@@ -1,14 +1,28 @@
 using Thrift
 import Thrift.process, Thrift.meta
 
-include("gen-jl/arithmetic/constants.jl");
-include("gen-jl/arithmetic/types.jl");
+include("gen-jl/floatops/floatops_constants.jl");
+include("gen-jl/floatops/floatops_types.jl");
+include("gen-jl/floatops/FloatCalc.jl");
+
+include("gen-jl/arithmetic/arithmetic_constants.jl");
+include("gen-jl/arithmetic/arithmetic_types.jl");
 include("gen-jl/arithmetic/Calc.jl");
 
 function calculate(oper::String, p1::Int32, p2::Int32) 
     ret = (eval(symbol(oper)))(p1, p2)
     if ret > (2^31 - 1) 
         ex = InvalidOperation()
+        set_field(ex, :oper, "$oper($p1, $p2) overflows")
+        throw(ex)
+    end
+    ret
+end
+
+function float_calculate(oper::String, p1::Float64, p2::Float64)
+    ret = (eval(symbol(oper)))(p1, p2)
+    if ret > (2^63 - 1) 
+        ex = InvalidFloatOperation()
         set_field(ex, :oper, "$oper($p1, $p2) overflows")
         throw(ex)
     end

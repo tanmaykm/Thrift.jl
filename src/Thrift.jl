@@ -26,7 +26,7 @@ export TBinaryProtocol
 
 
 # from processor.jl
-export ThriftProcessor, ThriftHandler, process, handle
+export ThriftProcessor, ThriftHandler, process, handle, extend
 
 
 # from server.jl
