@@ -26,11 +26,11 @@ export TBinaryProtocol
 
 
 # from processor.jl
-export ThriftProcessor, ThriftHandler, process, handle, extend
+export ThriftProcessor, ThriftHandler, process, handle, extend, use_spawn
 
 
 # from server.jl
-export TSimpleServer, serve
+export TSimpleServer, TTaskServer, serve
 
 
 include("base.jl")

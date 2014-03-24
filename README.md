@@ -66,11 +66,11 @@ Buffered       |                              | Not implemented yet
 
 ### Servers
 
-Implementation | Implemented as               | Notes
----            | ---                          | ---
-Simple         | TSimpleServer                | Single process, blocking
-Non Blocking   | TTaskServer                  | Single process, non blocking tasks. Not implemented yet.
-Multi Process  | TProcessPoolServer           | Multi process, non blocking. Not implemented yet.
+Implementation              | Implemented as               | Notes
+---                         | ---                          | ---
+Blocking. Single Task.      | TSimpleServer                | Single process, blocking
+Non Blocking Tasks.         | TTaskServer                  | Single process. Asynchronous task spawned for each connection.
+Non Blocking Multi Process. | TProcessPoolServer           | Multi process, non blocking. Not implemented yet.
 
 
 ### Setting and Getting Fields
@@ -90,6 +90,10 @@ Types used as Thrift structures are regular Julia types and the Julia syntax to 
 - `fillset(obj::Any, fld::Symbol)` : mark field fld of object obj as set
 - `fillunset(obj::Any)` : mark all fields of this object as not set
 - `fillunset(obj::Any, fld::Symbol)` : mark field fld of object obj as not set
+
+
+### Service Extensions
+TODO
 
 
 ### On the Generated Code Structure

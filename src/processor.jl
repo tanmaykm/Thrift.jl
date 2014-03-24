@@ -10,12 +10,14 @@ end
 
 type ThriftProcessor
     handlers::Dict{String, ThriftHandler}
+    use_spawn::Bool
     extends::ThriftProcessor
-    ThriftProcessor() = (o=new(); o.handlers=Dict{String, ThriftHandler}(); o)
+    ThriftProcessor() = (o=new(); o.use_spawn=false; o.handlers=Dict{String, ThriftHandler}(); o)
 end
 
 handle(p::ThriftProcessor, handler::ThriftHandler) = (p.handlers[handler.name] = handler; nothing)
 extend(p::ThriftProcessor, extends::ThriftProcessor) = (setfield!(p, :extends, extends); nothing)
+use_spawn(p::ThriftProcessor, use_spawn::Bool) = (setfield!(p, :use_spawn, use_spawn); nothing)
 
 function raise_exception(extyp::Int32, exmsg::String, outp::TProtocol, name::String, seqid::Int32)
     x = TApplicationException(extyp, exmsg)
@@ -43,7 +45,11 @@ function _process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol, name::Str
     instruct = read(inp, TSTRUCT, instantiate(handler.intyp))
     readMessageEnd(inp)
     logmsg("process calling handler function")
-    outstruct = handler.fn(instruct)
+    if p.use_spawn
+        outstruct = fetch(@spawn handler.fn(instruct))
+    else
+        outstruct = handler.fn(instruct)
+    end
     logmsg("process out of handler function. return val: $outstruct")
     if !isa(outstruct, handler.outtyp)
         raise_exception(ApplicationExceptionType.MISSING_RESULT, "Invalid return type. Expected $(handler.outtyp). Got $(typeof(outstruct))", outp, name, seqid)
