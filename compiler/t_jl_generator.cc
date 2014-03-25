@@ -194,7 +194,7 @@ string t_jl_generator::jl_autogen_comment() {
 string t_jl_generator::jl_imports() {
 	std::ostringstream out;
 
-	out << "using Thrift" << endl << "import Thrift.process, Thrift.meta" << endl << endl;
+	out << "using Thrift" << endl << "import Thrift.process, Thrift.meta, Thrift.distribute" << endl << endl;
 
 	const vector<t_program*>& includes = program_->get_includes();
 	for (size_t i = 0; i < includes.size(); ++i) {
@@ -576,6 +576,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	indent_down();
 	f_service_ << "end # type " << service_name_ << "Processor" << endl;
 	f_service_ << "process(p::" << service_name_ << "Processor, inp::TProtocol, outp::TProtocol) = process(p.tp, inp, outp)" << endl;
+	f_service_ << "distribute(p::" << service_name_ << "Processor) = distribute(p.tp)" << endl;
 }
 
 void t_jl_generator::generate_service_user_function_comments(t_service* tservice) {
