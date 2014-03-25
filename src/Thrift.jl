@@ -33,6 +33,12 @@ export ThriftProcessor, ThriftHandler, process, handle, extend, use_spawn
 export TSimpleServer, TTaskServer, serve
 
 
+# Julia 0.2 compatibility patch
+if isless(Base.VERSION, v"0.3.0-")
+read!(a,b::Array) = read(a,b::Array)
+typealias UTF16String UTF8String
+end
+
 include("base.jl")
 include("codec.jl")
 include("transports.jl")
@@ -45,11 +51,6 @@ include("server.jl")
 #const logger = Logging.configure(filename="thrift.log", level=DEBUG)
 #logmsg(s) = debug(s)
 logmsg(s) = nothing
-
-# Julia 0.2 compatibility patch
-if isless(Base.VERSION, v"0.3.0-")
-read!(a,b::Array) = read(a,b::Array)
-end
 
 end # module
 

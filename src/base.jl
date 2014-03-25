@@ -36,6 +36,9 @@ type _enum_TTypes
     LIST::Int32
     UTF8::Int32
     UTF16::Int32
+    function _enum_TTypes(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17)
+        new(int32(p1), int32(p2), int32(p3), int32(p4), int32(p5), int32(p6), int32(p7), int32(p8), int32(p9), int32(p10), int32(p11), int32(p12), int32(p13), int32(p14), int32(p15), int32(p16), int32(p17))
+    end
 end
 
 const TType = _enum_TTypes(0,    1,      2,      3,3,     4,              6,             8,            10,    11,11,     12,      13,    14,     15,      16,    17)
@@ -367,7 +370,7 @@ type _enum_TApplicationExceptionTypes
     UNSUPPORTED_CLIENT_TYPE::Int32
 end
 
-const ApplicationExceptionType = _enum_TApplicationExceptionTypes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+const ApplicationExceptionType = _enum_TApplicationExceptionTypes(int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), int32(7), int32(8), int32(9), int32(10))
 const _appex_msgs = [
     "Default (unknown) TApplicationException",
     "Unknown method",
@@ -400,7 +403,7 @@ type _enum_TMessageType
     ONEWAY::Int32
 end 
 
-const MessageType = _enum_TMessageType(1, 2, 3, 4)
+const MessageType = _enum_TMessageType(int32(1), int32(2), int32(3), int32(4))
 
 
 

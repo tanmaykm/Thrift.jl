@@ -8,7 +8,7 @@ type _enum_TTransportExceptionTypes
     END_OF_FILE::Int32
 end
 
-const TransportExceptionTypes = _enum_TTransportExceptionTypes(0, 1, 2, 3, 4)
+const TransportExceptionTypes = _enum_TTransportExceptionTypes(int32(0), int32(1), int32(2), int32(3), int32(4))
 
 type TTransportException <: Exception
     typ::Int32

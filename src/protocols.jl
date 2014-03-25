@@ -7,7 +7,7 @@ type _enum_TProtocolExceptionTypes
     BAD_VERSION::Int32
 end
 
-const ProtocolExceptionType = _enum_TProtocolExceptionTypes(0, 1, 2, 3, 4)
+const ProtocolExceptionType = _enum_TProtocolExceptionTypes(int32(0), int32(1), int32(2), int32(3), int32(4))
 
 type TProtocolException
     typ::Int32
@@ -172,7 +172,7 @@ type _enum_CState
     VALUE_READ::Int32
     BOOL_READ::Int32
 end
-const CState = _enum_CState(0, 1, 2, 3, 4, 5, 6, 7, 8)
+const CState = _enum_CState(int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), int32(7), int32(8))
 
 
 type TCompactProtocol <: TProtocol
