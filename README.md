@@ -50,7 +50,7 @@ Following is the status of protocols, transports and servers supported in the cu
 Implementation | Implemented as               | Notes
 ---            | ---                          | ---
 Binary         | TBinaryProtocol              |
-Compact        |                              | Not implemented yet
+Compact        | TCompactProtocol             | 
 JSON           |                              | Not implemented yet
 
 
@@ -59,6 +59,7 @@ JSON           |                              | Not implemented yet
 Implementation | Implemented as               | Notes
 ---            | ---                          | ---
 Socket         | TSocket and TServerSocket    |
+Framed         | TFramedTransport             |
 SSL Socket     |                              | Not implemented yet
 HTTP           |                              | Not implemented yet
 Buffered       |                              | Not implemented yet

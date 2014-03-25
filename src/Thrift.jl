@@ -22,7 +22,7 @@ export TransportExceptionTypes, TTransportException
 
 
 # from protocols.jl
-export TBinaryProtocol
+export TBinaryProtocol, TCompactProtocol
 
 
 # from processor.jl

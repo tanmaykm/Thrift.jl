@@ -193,6 +193,7 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
             setfield!(val, fldname, read(p, jtyp))
         end
         fillset(val, fldname)
+        readFieldEnd(p)
     end
     readStructEnd(p)
     val
