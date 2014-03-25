@@ -46,9 +46,9 @@ const TType = _enum_TTypes(0,    1,      2,      3,3,     4,              6,    
 const _TTypeNames   = ["STOP", "VOID", "BOOL", "BYTE", "DOUBLE", "",    "I16", "",     "I32", "",     "I64", "STRING", "STRUCT", "MAP", "SET", "LIST", "UTF8", "UTF16"]
 const _TJTypes    =   [TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE, Nothing, TI16, Nothing, TI32, Nothing, TI64,  TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST,  TUTF8,  TUTF16]
 
-thrift_type_name(typ::Int32) = _TTypeNames[typ+1]
+thrift_type_name(typ::Integer) = _TTypeNames[typ+1]
 
-julia_type(typ::Int32) = _TJTypes[typ+1]
+julia_type(typ::Integer) = _TJTypes[typ+1]
 
 thrift_type(::Type{TSTOP})          = int32(0)
 thrift_type(::Type{TVOID})          = int32(1)
@@ -152,7 +152,7 @@ function skip(p::TProtocol, ::Type{TSTRUCT})
     while true
         (name, ttype, id) = readFieldBegin(p)
         (ttype == TType.STOP) && break
-        skip(t, julia_type(ttype))
+        skip(p, julia_type(ttype))
         readFieldEnd(p)
     end
     readStructEnd(p)

@@ -68,21 +68,21 @@ end
 
 ##
 # Process Pool Server
-#type TProcessPoolServer <: TServer
-#    base::TServerBase
-#    function TProcessPoolServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) 
-#        processor.tp.use_spawn = true
-#        new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
-#    end
-#end
-#
-#function serve(ss::TProcessPoolServer)
-#    s = ss.base
-#    listen(s.srvr_t)
-#
-#    while true
-#        client = accept(s.srvr_t)
-#        @async serve_accepted(client, s)
-#    end
-#end
-#
+type TProcessPoolServer <: TServer
+    base::TServerBase
+    function TProcessPoolServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) 
+        distribute(processor)
+        new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
+    end
+end
+
+function serve(ss::TProcessPoolServer)
+    s = ss.base
+    listen(s.srvr_t)
+
+    while true
+        client = accept(s.srvr_t)
+        @async serve_accepted(client, s)
+    end
+end
+

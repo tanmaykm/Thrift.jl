@@ -17,7 +17,7 @@ end
 
 handle(p::ThriftProcessor, handler::ThriftHandler) = (p.handlers[handler.name] = handler; nothing)
 extend(p::ThriftProcessor, extends::ThriftProcessor) = (setfield!(p, :extends, extends); nothing)
-use_spawn(p::ThriftProcessor, use_spawn::Bool) = (setfield!(p, :use_spawn, use_spawn); nothing)
+distribute(p::ThriftProcessor, use_spawn::Bool=true) = (setfield!(p, :use_spawn, use_spawn); nothing)
 
 function raise_exception(extyp::Int32, exmsg::String, outp::TProtocol, name::String, seqid::Int32)
     x = TApplicationException(extyp, exmsg)

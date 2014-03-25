@@ -71,7 +71,7 @@ Implementation              | Implemented as               | Notes
 ---                         | ---                          | ---
 Blocking. Single Task.      | TSimpleServer                | Single process, blocking
 Non Blocking Tasks.         | TTaskServer                  | Single process. Asynchronous task spawned for each connection.
-Non Blocking Multi Process. | TProcessPoolServer           | Multi process, non blocking. Not implemented yet.
+Non Blocking Multi Process. | TProcessPoolServer           | Multi process, non blocking. 
 
 
 ### Setting and Getting Fields

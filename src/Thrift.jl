@@ -26,11 +26,11 @@ export TBinaryProtocol, TCompactProtocol
 
 
 # from processor.jl
-export ThriftProcessor, ThriftHandler, process, handle, extend, use_spawn
+export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
 
 
 # from server.jl
-export TSimpleServer, TTaskServer, serve
+export TSimpleServer, TTaskServer, TProcessPoolServer, serve
 
 
 # Julia 0.2 compatibility patch
