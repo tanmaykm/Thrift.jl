@@ -9,7 +9,7 @@ from floatops.ttypes import *
 
 from thrift.transport import TSocket
 from thrift.transport import TTransport
-from thrift.protocol import TBinaryProtocol
+from thrift.protocol import TBinaryProtocol, TCompactProtocol
 from thrift.server import TServer
 
 import socket
@@ -56,6 +56,7 @@ processor = Calc.Processor(handler)
 transport = TSocket.TServerSocket(port=9999)
 tfactory = TTransport.TBufferedTransportFactory()
 pfactory = TBinaryProtocol.TBinaryProtocolFactory()
+#pfactory = TCompactProtocol.TCompactProtocolFactory()
 
 server = TServer.TSimpleServer(processor, transport, tfactory, pfactory)
 

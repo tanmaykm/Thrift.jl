@@ -11,6 +11,7 @@ include("gen-jl/arithmetic/Calc.jl");
 
 function calcclnt(niter::Int)
     clnt_transport = TSocket(9999)
+    #proto = TCompactProtocol(clnt_transport)
     proto = TBinaryProtocol(clnt_transport)
 
     clnt = CalcClient(proto)
@@ -37,6 +38,7 @@ end
 
 function floatcalcclnt(niter::Int)
     clnt_transport = TSocket(9999)
+    #proto = TCompactProtocol(clnt_transport)
     proto = TBinaryProtocol(clnt_transport)
 
     clnt = CalcClient(proto)

@@ -13,7 +13,7 @@ from floatops.constants import *
 from thrift import Thrift
 from thrift.transport import TSocket
 from thrift.transport import TTransport
-from thrift.protocol import TBinaryProtocol
+from thrift.protocol import TBinaryProtocol, TCompactProtocol
 
 def calcclnt(niter):
     try:
@@ -25,6 +25,7 @@ def calcclnt(niter):
 
         # Wrap in a protocol
         protocol = TBinaryProtocol.TBinaryProtocol(transport)
+        #protocol = TCompactProtocol.TCompactProtocol(transport)
 
         # Create a client to use the protocol encoder
         client = Calc.Client(protocol)
@@ -60,6 +61,7 @@ def floatcalcclnt(niter):
 
         # Wrap in a protocol
         protocol = TBinaryProtocol.TBinaryProtocol(transport)
+        #protocol = TCompactProtocol.TCompactProtocol(transport)
 
         # Create a client to use the protocol encoder
         client = Calc.Client(protocol)

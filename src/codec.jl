@@ -2,18 +2,22 @@ const MSB = 0x80
 const MASK7 = 0x7f
 const MASK8 = 0xff
 
-function _write_fixed{T <: Unsigned}(io, ux::T, bigendian::Bool)
+const _wfbuf = Array[Array(Uint8, 1), Array(Uint8, 2), Array(Uint8, 4), Array(Uint8, 8), Array(Uint8, 16)]
+
+function _write_fixed{T <: Unsigned}(io::IO, ux::T, bigendian::Bool)
     N = sizeof(ux)
-    a = Array(Uint8, N)
-    for n in 1:N
-        a[bigendian ? (N+1-n) : n] = uint8(ux & MASK8)
+    _write_fixed(io, ux, _wfbuf[int(log2(N))+1], bigendian ? (N:-1:1) : (1:N))
+end
+   
+function _write_fixed{T <: Unsigned, R <: Ranges}(io::IO, ux::T, a::Array{Uint8,1}, r::R)
+    for n in r
+        a[n] = uint8(ux & MASK8) 
         ux >>>= 8
     end
     write(io, a)
-    N
 end
 
-function _read_fixed{T <: Unsigned}(io, ret::T, N::Int, bigendian::Bool)
+function _read_fixed{T <: Unsigned}(io::IO, ret::T, N::Int, bigendian::Bool)
     r = bigendian ? ((N-1):-1:0) : (0:1:(N-1))
     for n in r
         byte = convert(T, read(io, Uint8))
@@ -22,7 +26,7 @@ function _read_fixed{T <: Unsigned}(io, ret::T, N::Int, bigendian::Bool)
     ret
 end
 
-function _write_uleb{T <: Integer}(io, x::T)
+function _write_uleb{T <: Integer}(io::IO, x::T)
     nw = 0
     cont = true
     while cont
@@ -37,7 +41,7 @@ function _write_uleb{T <: Integer}(io, x::T)
     nw
 end
 
-function _read_uleb{T <: Integer}(io, typ::Type{T})
+function _read_uleb{T <: Integer}(io::IO, typ::Type{T})
     res = convert(typ, 0)
     n = 0
     byte = uint8(MSB)
@@ -49,13 +53,13 @@ function _read_uleb{T <: Integer}(io, typ::Type{T})
     res
 end
 
-function _write_zigzag{T <: Integer}(io, x::T)
+function _write_zigzag{T <: Integer}(io::IO, x::T)
     nbits = 8*sizeof(x)
     zx = (x << 1) $ (x >> (nbits-1))
     _write_uleb(io, zx)
 end
 
-function _read_zigzag{T <: Integer}(io, typ::Type{T})
+function _read_zigzag{T <: Integer}(io::IO, typ::Type{T})
     zx = _read_uleb(io, Uint64)
     # result is positive if zx is even
     convert(typ, iseven(zx) ? (zx >>> 1) : -((zx+1) >>> 1))

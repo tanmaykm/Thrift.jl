@@ -28,6 +28,7 @@ function serve_accepted(client::TTransport, s::TServerBase)
     close(otrans)
 end
 
+close(srvr::TServer) = close(srvr.base.srvr_t)
 
 ##
 # Blocking server. Requests are processed in the main task.
@@ -55,16 +56,16 @@ type TTaskServer <: TServer
     TTaskServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) = new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
 end
 
-function serve(ss::TTaskServer)
-    s = ss.base
-    listen(s.srvr_t)
-
-    while true
-        client = accept(s.srvr_t)
-        @async serve_accepted(client, s)
-    end
-end
-
+#function serve(ss::TTaskServer)
+#    s = ss.base
+#    listen(s.srvr_t)
+#
+#    while true
+#        client = accept(s.srvr_t)
+#        @async serve_accepted(client, s)
+#    end
+#end
+#
 
 ##
 # Process Pool Server
@@ -76,7 +77,9 @@ type TProcessPoolServer <: TServer
     end
 end
 
-function serve(ss::TProcessPoolServer)
+typealias TAsyncServer  Union(TTaskServer, TProcessPoolServer)
+
+function serve(ss::TAsyncServer)
     s = ss.base
     listen(s.srvr_t)
 

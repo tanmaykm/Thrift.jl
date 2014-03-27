@@ -28,9 +28,9 @@ type TFramedTransport <: TTransport
     wbuff::IOBuffer
     TFramedTransport(tp::TTransport) = new(tp, PipeBuffer(), PipeBuffer())
 end
-rawio(t::TFramedTransport) = rawio(tp)
-open(t::TFramedTransport) = open(t.tp)
-close(t::TFramedTransport) = close(t.tp)
+rawio(t::TFramedTransport)  = rawio(t.tp)
+open(t::TFramedTransport)   = open(t.tp)
+close(t::TFramedTransport)  = close(t.tp)
 isopen(t::TFramedTransport) = isopen(t.tp)
 
 _readframesz(t::TFramedTransport) = _read_fixed(rawio(t), uint32(0), 4, true)
@@ -92,7 +92,7 @@ close(tsock::TSocketBase) = (isopen(tsock.io) && close(tsock.io); nothing)
 rawio(tsock::TSocketBase) = tsock.io
 read(tsock::TSocketBase, buff::Array{Uint8,1}) = (read(tsock.io, buff); buff)
 write(tsock::TSocketBase, buff::Array{Uint8,1}) = write(tsock.io, buff)
-flush(tsock::TSocketBase) = flush(tsock.io)
-isopen(tsock::TSocketBase) = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
+flush(tsock::TSocketBase)   = flush(tsock.io)
+isopen(tsock::TSocketBase)  = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
 
 
