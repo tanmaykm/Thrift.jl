@@ -55,7 +55,7 @@ public:
 	/**
 	 * Helper functions
 	 */
-	std::string render_const_value(t_type* type, t_const_value* value);
+	std::string render_const_value(t_type* type, t_const_value* value, bool with_conversion);
 	string julia_type(t_type *type);
 	void generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception);
 	std::string jl_autogen_comment();
@@ -272,7 +272,7 @@ void t_jl_generator::generate_const(t_const* tconst) {
 	string name = tconst->get_name();
 	t_const_value* value = tconst->get_value();
 
-	indent(f_consts_) << "const " << name << " = " << render_const_value(type, value);
+	indent(f_consts_) << "const " << name << " = " << render_const_value(type, value, true);
 	f_consts_ << endl;
 
 	module_exports_ << "export " << name << " # const" << endl;
@@ -283,7 +283,7 @@ void t_jl_generator::generate_const(t_const* tconst) {
  * is NOT performed in this function as it is always run beforehand using the
  * validate_types method in main.cc
  */
-string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
+string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bool with_conversion) {
 	type = get_true_type(type);
 	std::ostringstream out;
 
@@ -297,19 +297,44 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
 			out << (value->get_integer() > 0 ? "true" : "false");
 			break;
 		case t_base_type::TYPE_BYTE:
-			out << "uint8(" << value->get_integer() << ")";
+			if(with_conversion) {
+				out << "uint8(" << value->get_integer() << ")";
+			}
+			else {
+				out << value->get_integer();
+			}
 			break;
 		case t_base_type::TYPE_I16:
-			out << "int16(" << value->get_integer() << ")";
+			if(with_conversion) {
+				out << "int16(" << value->get_integer() << ")";
+			}
+			else {
+				out << value->get_integer();
+			}
 			break;
 		case t_base_type::TYPE_I32:
-			out << "int32(" << value->get_integer() << ")";
+			if(with_conversion) {
+				out << "int32(" << value->get_integer() << ")";
+			}
+			else {
+				out << value->get_integer();
+			}
 			break;
 		case t_base_type::TYPE_I64:
-			out << "int64(" << value->get_integer() << ")";
+			if(with_conversion) {
+				out << "int64(" << value->get_integer() << ")";
+			}
+			else {
+				out << value->get_integer();
+			}
 			break;
 		case t_base_type::TYPE_DOUBLE:
-			out << "float64(" << value->get_double() << ")";
+			if(with_conversion) {
+				out << "float64(" << value->get_double() << ")";
+			}
+			else {
+				out << value->get_double();
+			}
 			break;
 		default:
 			throw "compiler error: no const of base type " + t_base_type::t_base_name(tbase);
@@ -333,9 +358,9 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
 		    	out << "," << endl;
 		    }
 	    	out << indent();
-	    	out << render_const_value(ktype, v_iter->first);
+	    	out << render_const_value(ktype, v_iter->first, true);
 	    	out << " => ";
-	    	out << render_const_value(vtype, v_iter->second);
+	    	out << render_const_value(vtype, v_iter->second, true);
 	    }
 	    indent_down();
 	    indent(out) << endl << "]";
@@ -347,9 +372,9 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
 	      etype = ((t_set*)type)->get_elem_type();
 	    }
 	    if (type->is_set()) {
-	      out << "Set(";
+	      out << "union!(Set{" << julia_type(etype) << "}(), ";
 	    }
-	    out << "[" << endl;
+	    out << julia_type(etype) << "[";
 	    indent_up();
 	    const vector<t_const_value*>& val = value->get_list();
 	    vector<t_const_value*>::const_iterator v_iter;
@@ -358,10 +383,10 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
 		    if (first) {
 		    	first = false;
 		    } else {
-		    	out << "," << endl;
+		    	out << ", ";
 		    }
 		    out << indent();
-		    out << render_const_value(etype, *v_iter);
+		    out << render_const_value(etype, *v_iter, false);
 	    }
 	    indent_down();
 	    indent(out) << endl << "]";
@@ -434,7 +459,7 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 			need_meta = true;
 			t_type* type = get_true_type(fld->get_type());
 			if(!flddefaults.str().empty()) (flddefaults << ", ");
-			flddefaults << ":" << fld->get_name() << " => " << render_const_value(type, fld->get_value());
+			flddefaults << ":" << fld->get_name() << " => " << render_const_value(type, fld->get_value(), true);
 		}
 		default_fld_num++;
 	}

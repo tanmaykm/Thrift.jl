@@ -1,7 +1,7 @@
 module Thrift
 
-import Base.TcpSocket, Base.TcpServer
-import Base.open, Base.close, Base.isopen, Base.read, Base.write, Base.flush, Base.skip, Base.listen, Base.accept, Base.show, Base.copy!
+import Base: TcpSocket, TcpServer
+import Base: open, close, isopen, read, write, flush, skip, listen, accept, show, copy!
 
 export open, close, isopen, read, write, flush, skip, listen, accept, show, copy!
 
