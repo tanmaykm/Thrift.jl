@@ -146,8 +146,8 @@ readDouble(p::TProtocol)           = read(p, TDOUBLE)
 readString(p::TProtocol)           = read(p, UTF8String)
 
 
-function skip(p::TProtocol, ::Type{TSTRUCT})
-    logmsg("skip TSTRUCT")
+function skip{T<:TSTRUCT}(p::TProtocol, ::Type{T})
+    #logmsg("skip TSTRUCT")
     name = readStructBegin(p)
     while true
         (name, ttype, id) = readFieldBegin(p)
@@ -171,10 +171,10 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
         !issubtype(typeof(val), t) && error("can not read $t into $(typeof(val))")
     end
 
-    logmsg("read TSTRUCT $t")
+    #logmsg("read TSTRUCT $t")
 
     m = meta(t)
-    logmsg("struct meta: $m")
+    #logmsg("struct meta: $m")
     fillunset(val)
     while true
         (name, ttyp, id) = readFieldBegin(p)
@@ -199,18 +199,32 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
         readFieldEnd(p)
     end
     readStructEnd(p)
+
+    # populate defaults
+    for attrib in m.ordered
+        fldname = attrib.fld
+        if !isfilled(val, fldname) && (length(attrib.default) > 0)
+            default = attrib.default[1]
+            setfield!(val, fldname, deepcopy(default))
+            fillset(val, fldname)
+        end
+    end
+
     val
 end
 
 function write(p::TProtocol, val::TSTRUCT)
     t = typeof(val)
     m = meta(t)
-    logmsg("write TSTRUCT $t")
-    logmsg("struct meta: $m")
+    #logmsg("write TSTRUCT $t")
+    #logmsg("struct meta: $m")
     writeStructBegin(p, string(t))
 
     for attrib in m.ordered
-        !isfilled(val, attrib.fld) && continue
+        if !isfilled(val, attrib.fld)
+            m.symdict[attrib.fld].required && error("required field $(attrib.fld) not populated")
+            continue
+        end
         writeFieldBegin(p, string(attrib.fld), attrib.ttyp, attrib.fldnum)
         write(p, getfield(val, attrib.fld))
         writeFieldEnd(p)
@@ -220,8 +234,8 @@ function write(p::TProtocol, val::TSTRUCT)
     nothing
 end
 
-function skip(p::TProtocol, ::Type{TMAP})
-    logmsg("skip TMAP")
+function skip{T<:TMAP}(p::TProtocol, ::Type{T})
+    #logmsg("skip TMAP")
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
@@ -233,12 +247,12 @@ function skip(p::TProtocol, ::Type{TMAP})
     return
 end
 
-function read(p::TProtocol, ::Type{TMAP}, val=nothing)
+function read{T<:TMAP}(p::TProtocol, ::Type{T}, val=nothing)
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
 
-    logmsg("read TMAP key: $jktype, val: $jvtype")
+    #logmsg("read TMAP key: $jktype, val: $jvtype")
 
     if val == nothing
         val = Dict{jktype,jvtype}()
@@ -258,7 +272,7 @@ end
 
 function write(p::TProtocol, val::TMAP)
     (ktype,vtype) = eltype(val)
-    logmsg("write TMAP key: $ktype, val: $vtype")
+    #logmsg("write TMAP key: $ktype, val: $vtype")
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
         write(p, k)
@@ -267,8 +281,8 @@ function write(p::TProtocol, val::TMAP)
     writeMapEnd(p)
 end
 
-function skip(p::TProtocol, ::Type{TSET})
-    logmsg("skip TSET")
+function skip{T<:TSET}(p::TProtocol, ::Type{T})
+    #logmsg("skip TSET")
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -277,9 +291,9 @@ function skip(p::TProtocol, ::Type{TSET})
     readSetEnd(p)
 end
 
-function read(p::TProtocol, ::Type{TSET}, val=nothing)
+function read{T<:TSET}(p::TProtocol, ::Type{T}, val=nothing)
     (etype, size) = readSetBegin(p)
-    logmsg("read TSET, etype: $etype, size: $size")
+    #logmsg("read TSET, etype: $etype, size: $size")
     jetype = julia_type(etype)
     if val == nothing
         val = Set{jetype}()
@@ -288,7 +302,7 @@ function read(p::TProtocol, ::Type{TSET}, val=nothing)
     end
 
     for i in 1:size
-        add!(val, read(p, jetype))
+        push!(val, read(p, jetype))
     end
     readSetEnd(p)
     val
@@ -297,7 +311,7 @@ end
 function write(p::TProtocol, val::TSET)
     jetype = eltype(val)
     tetype = thrift_type(jetype)
-    logmsg("write TSET, etype: $jetype, size: $(length(val))")
+    #logmsg("write TSET, etype: $jetype, size: $(length(val))")
     writeSetBegin(p, tetype, length(val))
 
     if iscontainer(tetype)
@@ -312,8 +326,8 @@ function write(p::TProtocol, val::TSET)
     writeSetEnd(p)
 end
 
-function skip(p::TProtocol, ::Type{TLIST})
-    logmsg("skip TLIST")
+function skip{T<:TLIST}(p::TProtocol, ::Type{T})
+    #logmsg("skip TLIST")
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -322,10 +336,10 @@ function skip(p::TProtocol, ::Type{TLIST})
     readListEnd(p)
 end
 
-function read(p::TProtocol, ::Type{TLIST}, val=nothing)
+function read{T<:TLIST}(p::TProtocol, ::Type{T}, val=nothing)
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
-    logmsg("read TLIST, etype: $jetype, size: $size")
+    #logmsg("read TLIST, etype: $jetype, size: $size")
     if val == nothing
         val = Array(jetype,0)
     else
@@ -336,10 +350,11 @@ function read(p::TProtocol, ::Type{TLIST}, val=nothing)
         push!(val, read(p, jetype))
     end
     readListEnd(p)
+    val
 end
 
 function write(p::TProtocol, val::TLIST)
-    logmsg("write TLIST, etype: $(eltype(val)), size: $(length(val))")
+    #logmsg("write TLIST, etype: $(eltype(val)), size: $(length(val))")
     writeListBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
     for v in val
@@ -416,7 +431,7 @@ type ThriftMetaAttribs
     ttyp::Int32                     # thrift type
     required::Bool                  # required or optional
     default::Array                  # the default value, empty array if none is specified, first element is used if something is specified
-    elmeta::Array{Any,1}            # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
+    elmeta::Array                   # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
 end
 
 type ThriftMeta
@@ -448,11 +463,11 @@ function julia_type(fattr::ThriftMetaAttribs)
     elmeta = fattr.elmeta
     if ttyp == TType.STRUCT
         return elmeta[1].jtype
-    elseif ttyp == TTypes.LIST
+    elseif ttyp == TType.LIST
         return Array{elmeta[1].jtype, 1}
-    elseif ttyp == TTypes.SET
+    elseif ttyp == TType.SET
         return Set{elmeta[1].jtype}
-    elseif ttyp == TTypes.MAP
+    elseif ttyp == TType.MAP
         return Dict{elmeta[1].jtype, elmeta[2].jtype}
     end
     error("unknown type $ttyp in field attributes")

@@ -35,6 +35,7 @@ export TSimpleServer, TTaskServer, TProcessPoolServer, serve
 
 # Julia 0.2 compatibility patch
 if isless(Base.VERSION, v"0.3.0-")
+setfield!(a,b,c) = setfield(a,b,c)
 read!(a,b::Array) = read(a,b::Array)
 typealias UTF16String UTF8String
 end
