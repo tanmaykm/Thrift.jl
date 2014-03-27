@@ -257,7 +257,7 @@ void t_jl_generator::generate_enum(t_enum* tenum) {
 	    } else {
 	    	f_types_ << ", ";
 	    }
-		f_types_ << (*c_iter)->get_value();
+		f_types_ << "int32(" << (*c_iter)->get_value() << ")";
 	}
 	f_types_ << ")" << endl << endl;
 
@@ -321,7 +321,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
 	} else if (type->is_map()) {
 	    t_type* ktype = ((t_map*)type)->get_key_type();
 	    t_type* vtype = ((t_map*)type)->get_val_type();
-	    out << "{" << endl;
+	    out << "[" << endl;
 	    indent_up();
 	    const map<t_const_value*, t_const_value*>& val = value->get_map();
 	    map<t_const_value*, t_const_value*>::const_iterator v_iter;
@@ -338,7 +338,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value) {
 	    	out << render_const_value(vtype, v_iter->second);
 	    }
 	    indent_down();
-	    indent(out) << endl << "}";
+	    indent(out) << endl << "]";
 	} else if (type->is_list() || type->is_set()) {
 	    t_type* etype;
 	    if (type->is_list()) {
@@ -750,9 +750,9 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 			}
 		}
 
-		if(!ttype->is_void()) {
+		if(!ttype->is_void() || has_xceptions) {
 			indent(f_service_) << tfunction->get_name() << "_result() = (o=new(); fillunset(o); o)" << endl;
-			indent(f_service_) << tfunction->get_name() << "_result(success) = (o=new(); fillset(o, :success); o.success=success; o)" << endl;
+			if(!ttype->is_void()) indent(f_service_) << tfunction->get_name() << "_result(success) = (o=new(); fillset(o, :success); o.success=success; o)" << endl;
 		}
 
 		indent_down();
