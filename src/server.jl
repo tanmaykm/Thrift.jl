@@ -56,17 +56,6 @@ type TTaskServer <: TServer
     TTaskServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) = new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
 end
 
-#function serve(ss::TTaskServer)
-#    s = ss.base
-#    listen(s.srvr_t)
-#
-#    while true
-#        client = accept(s.srvr_t)
-#        @async serve_accepted(client, s)
-#    end
-#end
-#
-
 ##
 # Process Pool Server
 type TProcessPoolServer <: TServer

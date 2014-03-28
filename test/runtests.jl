@@ -46,6 +46,8 @@ srvr = make_server()
 println("Starting to serve requests...")
 @async try
     start_service(srvr)
+catch ex
+    println("Server stopped with $ex")
 finally
     println("Stopped serving requests.")
 end
