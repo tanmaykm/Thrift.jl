@@ -1,5 +1,3 @@
-import Base.TcpSocket, Base.TcpServer
-
 type _enum_TTransportExceptionTypes
     UNKNOWN::Int32
     NOT_OPEN::Int32
@@ -8,17 +6,17 @@ type _enum_TTransportExceptionTypes
     END_OF_FILE::Int32
 end
 
-const TransportExceptionTypes = _enum_TTransportExceptionTypes(int32(0), int32(1), int32(2), int32(3), int32(4))
+const TransportExceptionTypes = _enum_TTransportExceptionTypes(Int32(0), Int32(1), Int32(2), Int32(3), Int32(4))
 
 type TTransportException <: Exception
     typ::Int32
-    message::String
+    message::AbstractString
 
-    TTransportException(typ=TransportExceptionTypes.UNKNOWN, message::String="") = new(typ, message)
+    TTransportException(typ=TransportExceptionTypes.UNKNOWN, message::AbstractString="") = new(typ, message)
 end
 
 # generic transport methods
-read{T <: TTransport}(t::T, sz::Integer) = read(t, Array(Uint8, sz))
+read{T <: TTransport}(t::T, sz::Integer) = read(t, Array(UInt8, sz))
 # TODO: can have more common methods by naming wrapped transports as io
 
 # framed transport
@@ -33,22 +31,22 @@ open(t::TFramedTransport)   = open(t.tp)
 close(t::TFramedTransport)  = close(t.tp)
 isopen(t::TFramedTransport) = isopen(t.tp)
 
-_readframesz(t::TFramedTransport) = _read_fixed(rawio(t), uint32(0), 4, true)
+_readframesz(t::TFramedTransport) = _read_fixed(rawio(t), UInt32(0), 4, true)
 function _readframe(t::TFramedTransport)
     sz = _readframesz(t)
     write(rbuff, read(t.tp, sz))
     nothing
 end
-function read(t::TFramedTransport, buff::Array{Uint8,1})
+function read(t::TFramedTransport, buff::Array{UInt8,1})
     (t.rbuff.size <= length(buff)) && (read(t.rbuff, buff); buff)
     _readframe(t)
     read(t, buff)
 end
 
-write(t::TFramedTransport, buff::Array{Uint8,1}) = (write(t.wbuff, buff); nothing)
+write(t::TFramedTransport, buff::Array{UInt8,1}) = (write(t.wbuff, buff); nothing)
 function flush(t::TFramedTransport)
     szbuff = IOBuffer()
-    _write_fixed(szbuff, uint32(t.wbuff.size), true)
+    _write_fixed(szbuff, UInt32(t.wbuff.size), true)
     write(t.tp, takebuf_array(szbuff))
     write(t.tp, takebuf_array(wbuff))
     flush(t.tp)
@@ -57,26 +55,26 @@ end
 
 # thrift socket transport 
 type TSocket <: TTransport
-    host::String
+    host::AbstractString
     port::Integer
 
-    io::TcpSocket
+    io::TCPSocket
 
-    TSocket(host::String, port::Integer) = new(host, port)
+    TSocket(host::AbstractString, port::Integer) = new(host, port)
     TSocket(port::Integer) = TSocket("127.0.0.1", port)
 end
 
 type TServerSocket <: TServerTransport
-    host::String
+    host::AbstractString
     port::Integer
 
-    io::TcpServer
+    io::TCPServer
 
-    TServerSocket(host::String, port::Integer) = new(host, port)
+    TServerSocket(host::AbstractString, port::Integer) = new(host, port)
     TServerSocket(port::Integer) = TServerSocket("", port)
 end
 
-typealias TSocketBase Union(TSocket, TServerSocket)
+typealias TSocketBase Union{TSocket, TServerSocket}
 
 open(tsock::TServerSocket) = nothing
 open(tsock::TSocket) = (!isopen(tsock) && (tsock.io = connect(tsock.host, tsock.port)); nothing)
@@ -90,8 +88,8 @@ end
 
 close(tsock::TSocketBase) = (isopen(tsock.io) && close(tsock.io); nothing)
 rawio(tsock::TSocketBase) = tsock.io
-read(tsock::TSocketBase, buff::Array{Uint8,1}) = (read(tsock.io, buff); buff)
-write(tsock::TSocketBase, buff::Array{Uint8,1}) = write(tsock.io, buff)
+read(tsock::TSocketBase, buff::Array{UInt8,1}) = (read(tsock.io, buff); buff)
+write(tsock::TSocketBase, buff::Array{UInt8,1}) = write(tsock.io, buff)
 flush(tsock::TSocketBase)   = flush(tsock.io)
 isopen(tsock::TSocketBase)  = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
 

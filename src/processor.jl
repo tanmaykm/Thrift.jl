@@ -2,24 +2,24 @@
 # The default processor core.
 
 type ThriftHandler
-    name::String
+    name::AbstractString
     fn::Function
     intyp::Type
     outtyp::Type
 end
 
 type ThriftProcessor
-    handlers::Dict{String, ThriftHandler}
+    handlers::Dict{AbstractString, ThriftHandler}
     use_spawn::Bool
     extends::ThriftProcessor
-    ThriftProcessor() = (o=new(); o.use_spawn=false; o.handlers=Dict{String, ThriftHandler}(); o)
+    ThriftProcessor() = (o=new(); o.use_spawn=false; o.handlers=Dict{AbstractString, ThriftHandler}(); o)
 end
 
 handle(p::ThriftProcessor, handler::ThriftHandler) = (p.handlers[handler.name] = handler; nothing)
 extend(p::ThriftProcessor, extends::ThriftProcessor) = (setfield!(p, :extends, extends); nothing)
 distribute(p::ThriftProcessor, use_spawn::Bool=true) = (setfield!(p, :use_spawn, use_spawn); nothing)
 
-function _reply(outp::TProtocol, name::String, seqid::Int32, mtyp::Int32, m::Any)
+function _reply(outp::TProtocol, name::AbstractString, seqid::Int32, mtyp::Int32, m::Any)
     #logmsg("_reply $name:$seqid $m")
     writeMessageBegin(outp, name, mtyp, seqid)
     write(outp, m)
@@ -27,7 +27,7 @@ function _reply(outp::TProtocol, name::String, seqid::Int32, mtyp::Int32, m::Any
     flush(outp.t)
 end
 
-_exception(extyp::Int32, exmsg::String, outp::TProtocol, name::String, seqid::Int32) = _reply(outp, name, seqid, MessageType.EXCEPTION, TApplicationException(extyp, exmsg))
+_exception(extyp::Int32, exmsg::AbstractString, outp::TProtocol, name::AbstractString, seqid::Int32) = _reply(outp, name, seqid, MessageType.EXCEPTION, TApplicationException(extyp, exmsg))
 
 function process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol)
     #logmsg("process begin")
@@ -42,7 +42,7 @@ function process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol)
     _exception(ApplicationExceptionType.UNKNOWN_METHOD, "Unknown function $name", outp, name, seqid)
 end
 
-function _process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol, name::String, typ::Int32, seqid::Int32)
+function _process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol, name::AbstractString, typ::Int32, seqid::Int32)
     handler = p.handlers[name]
     instruct = read(inp, TSTRUCT, instantiate(handler.intyp))
     readMessageEnd(inp)
