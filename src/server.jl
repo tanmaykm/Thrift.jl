@@ -21,7 +21,7 @@ function serve_accepted(client::TTransport, s::TServerBase)
     catch ex
         if !isa(ex, EOFError)
             println(ex)
-            Base.error_show(STDERR, ex, catch_backtrace())
+            Base.show_backtrace(STDERR, catch_backtrace())
         end
     end
     close(itrans)
@@ -66,7 +66,7 @@ type TProcessPoolServer <: TServer
     end
 end
 
-typealias TAsyncServer  Union(TTaskServer, TProcessPoolServer)
+typealias TAsyncServer  Union{TTaskServer, TProcessPoolServer}
 
 function serve(ss::TAsyncServer)
     s = ss.base

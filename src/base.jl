@@ -1,10 +1,10 @@
 ##
 # Base Thrift type system
 type TSTOP end
-typealias TVOID     Nothing
+typealias TVOID     Void
 typealias TBOOL     Bool
-typealias TBYTE     Uint8
-typealias TI08      Uint8
+typealias TBYTE     UInt8
+typealias TI08      UInt8
 typealias TDOUBLE   Float64
 typealias TI16      Int16
 typealias TI32      Int32
@@ -37,39 +37,39 @@ type _enum_TTypes
     UTF8::Int32
     UTF16::Int32
     function _enum_TTypes(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17)
-        new(int32(p1), int32(p2), int32(p3), int32(p4), int32(p5), int32(p6), int32(p7), int32(p8), int32(p9), int32(p10), int32(p11), int32(p12), int32(p13), int32(p14), int32(p15), int32(p16), int32(p17))
+        new(Int32(p1), Int32(p2), Int32(p3), Int32(p4), Int32(p5), Int32(p6), Int32(p7), Int32(p8), Int32(p9), Int32(p10), Int32(p11), Int32(p12), Int32(p13), Int32(p14), Int32(p15), Int32(p16), Int32(p17))
     end
 end
 
 const TType = _enum_TTypes(0,    1,      2,      3,3,     4,              6,             8,            10,    11,11,     12,      13,    14,     15,      16,    17)
 #                        0       1       2       3        4       5       6     7        8     9       10     11         12       13     14      15       16     17
 const _TTypeNames   = ["STOP", "VOID", "BOOL", "BYTE", "DOUBLE", "",    "I16", "",     "I32", "",     "I64", "STRING", "STRUCT", "MAP", "SET", "LIST", "UTF8", "UTF16"]
-const _TJTypes    =   [TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE, Nothing, TI16, Nothing, TI32, Nothing, TI64,  TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST,  TUTF8,  TUTF16]
+const _TJTypes    =   [TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE, Void, TI16, Void, TI32, Void, TI64,  TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST,  TUTF8,  TUTF16]
 
 thrift_type_name(typ::Integer) = _TTypeNames[typ+1]
 
 julia_type(typ::Integer) = _TJTypes[typ+1]
 
-thrift_type(::Type{TSTOP})          = int32(0)
-thrift_type(::Type{TVOID})          = int32(1)
-thrift_type(::Type{TBOOL})          = int32(2)
-thrift_type(::Type{TBYTE})          = int32(3)
-thrift_type(::Type{TDOUBLE})        = int32(4)
-thrift_type(::Type{TI16})           = int32(6)
-thrift_type(::Type{TI32})           = int32(8)
-thrift_type(::Type{TI64})           = int32(10)
-thrift_type(::Type{TSTRING})        = int32(11)
-thrift_type{T<:Any}(::Type{T})      = int32(12)
-thrift_type{T<:Dict}(::Type{T})     = int32(13)
-thrift_type{T<:Set}(::Type{T})      = int32(14)
-thrift_type{T<:Array}(::Type{T})    = int32(15)
-thrift_type(::Type{TUTF8})          = int32(16)
-thrift_type(::Type{TUTF16})         = int32(17)
-thrift_type(::Type{String})         = int32(11)
+thrift_type(::Type{TSTOP})          = Int32(0)
+thrift_type(::Type{TVOID})          = Int32(1)
+thrift_type(::Type{TBOOL})          = Int32(2)
+thrift_type(::Type{TBYTE})          = Int32(3)
+thrift_type(::Type{TDOUBLE})        = Int32(4)
+thrift_type(::Type{TI16})           = Int32(6)
+thrift_type(::Type{TI32})           = Int32(8)
+thrift_type(::Type{TI64})           = Int32(10)
+thrift_type(::Type{TSTRING})        = Int32(11)
+thrift_type{T<:Any}(::Type{T})      = Int32(12)
+thrift_type{T<:Dict}(::Type{T})     = Int32(13)
+thrift_type{T<:Set}(::Type{T})      = Int32(14)
+thrift_type{T<:Array}(::Type{T})    = Int32(15)
+thrift_type(::Type{TUTF8})          = Int32(16)
+thrift_type(::Type{TUTF16})         = Int32(17)
+thrift_type(::Type{AbstractString}) = Int32(11)
 
 const _container_type_ids = [TType.STRUCT, TType.MAP, TType.SET, TType.LIST]
 const _container_types    = [TSTRUCT, TMAP, TSET, TLIST]
-iscontainer(typ::Integer)   = (int32(typ) in _container_type_ids)
+iscontainer(typ::Integer)   = (Int32(typ) in _container_type_ids)
 iscontainer{T}(typ::Type{T})    = iscontainer(thrift_type(typ))
 
 ##
@@ -104,26 +104,26 @@ for _typ in _TJTypes
     end
 end
 
-writeMessageBegin(p::TProtocol, name::String, mtype::Int32, seqid::Integer)    = nothing
-writeMessageEnd(p::TProtocol)                                                  = nothing
-writeStructBegin(p::TProtocol, name::String)                                   = nothing
-writeStructEnd(p::TProtocol)                                                   = nothing
-writeFieldBegin(p::TProtocol, name::String, ttype::Int32, fid::Integer)        = nothing 
-writeFieldEnd(p::TProtocol)                                                    = nothing
-writeFieldStop(p::TProtocol)                                                   = nothing
-writeMapBegin(p::TProtocol, ktype::Int32, vtype::Int32, size::Integer)         = nothing
-writeMapEnd(p::TProtocol)                                                      = nothing
-writeListBegin(p::TProtocol, etype::Int32, size::Integer)                      = nothing
-writeListEnd(p::TProtocol)                                                     = nothing
-writeSetBegin(p::TProtocol, etype::Int32, size::Integer)                       = nothing
-writeSetEnd(p::TProtocol)                                                      = nothing
-writeBool(p::TProtocol, val)                                                   = write(p, convert(TBOOL, val))
-writeByte(p::TProtocol, val)                                                   = write(p, convert(TBYTE, val))
-writeI16(p::TProtocol, val)                                                    = write(p, convert(TI16, val))
-writeI32(p::TProtocol, val)                                                    = write(p, convert(TI32, val))
-writeI64(p::TProtocol, val)                                                    = write(p, convert(TI64, val))
-writeDouble(p::TProtocol, val)                                                 = write(p, convert(TDOUBLE, val))
-writeString(p::TProtocol, val)                                                 = write(p, bytestring(val))
+writeMessageBegin(p::TProtocol, name::AbstractString, mtype::Int32, seqid::Integer)     = nothing
+writeMessageEnd(p::TProtocol)                                                           = nothing
+writeStructBegin(p::TProtocol, name::AbstractString)                                    = nothing
+writeStructEnd(p::TProtocol)                                                            = nothing
+writeFieldBegin(p::TProtocol, name::AbstractString, ttype::Int32, fid::Integer)         = nothing 
+writeFieldEnd(p::TProtocol)                                                             = nothing
+writeFieldStop(p::TProtocol)                                                            = nothing
+writeMapBegin(p::TProtocol, ktype::Int32, vtype::Int32, size::Integer)                  = nothing
+writeMapEnd(p::TProtocol)                                                               = nothing
+writeListBegin(p::TProtocol, etype::Int32, size::Integer)                               = nothing
+writeListEnd(p::TProtocol)                                                              = nothing
+writeSetBegin(p::TProtocol, etype::Int32, size::Integer)                                = nothing
+writeSetEnd(p::TProtocol)                                                               = nothing
+writeBool(p::TProtocol, val)                                                            = write(p, convert(TBOOL, val))
+writeByte(p::TProtocol, val)                                                            = write(p, convert(TBYTE, val))
+writeI16(p::TProtocol, val)                                                             = write(p, convert(TI16, val))
+writeI32(p::TProtocol, val)                                                             = write(p, convert(TI32, val))
+writeI64(p::TProtocol, val)                                                             = write(p, convert(TI64, val))
+writeDouble(p::TProtocol, val)                                                          = write(p, convert(TDOUBLE, val))
+writeString(p::TProtocol, val)                                                          = write(p, bytestring(val))
 
 readMessageBegin(p::TProtocol)     = nothing
 readMessageEnd(p::TProtocol)       = nothing
@@ -180,7 +180,7 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
         (name, ttyp, id) = readFieldBegin(p)
         (ttyp == TType.STOP) && break
 
-        attribs = m.numdict[int(id)]
+        attribs = m.numdict[Int(id)]
         (ttyp != attribs.ttyp) && !((attribs.ttyp == TType.UTF8) && (ttyp == TType.STRING)) && error("can not read field of type $ttyp into type $(attribs.ttyp)")
         (nothing != name) && (symbol(name) != attribs.fld) && error("field names do not match. got $(name), have $(attribs.fld)")
 
@@ -257,7 +257,7 @@ function read{T<:TMAP}(p::TProtocol, ::Type{T}, val=nothing)
     if val == nothing
         val = Dict{jktype,jvtype}()
     else
-        (_ktype, _vtype) = eltype(val)
+        (_ktype, _vtype) = eltype(val).types
         (!issubtype(jktype, _ktype) || !issubtype(jvtype, _vtype)) && error("can not read Dict{$jktype,$jvtype} into $(typeof(val))")
     end
 
@@ -271,7 +271,7 @@ function read{T<:TMAP}(p::TProtocol, ::Type{T}, val=nothing)
 end
 
 function write(p::TProtocol, val::TMAP)
-    (ktype,vtype) = eltype(val)
+    (ktype,vtype) = eltype(val).types
     #logmsg("write TMAP key: $ktype, val: $vtype")
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
@@ -368,7 +368,7 @@ end
 ##
 # Exception types
 type TException <: Exception
-    message::String
+    message::AbstractString
 end
 
 type _enum_TApplicationExceptionTypes
@@ -385,7 +385,7 @@ type _enum_TApplicationExceptionTypes
     UNSUPPORTED_CLIENT_TYPE::Int32
 end
 
-const ApplicationExceptionType = _enum_TApplicationExceptionTypes(int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), int32(7), int32(8), int32(9), int32(10))
+const ApplicationExceptionType = _enum_TApplicationExceptionTypes(Int32(0), Int32(1), Int32(2), Int32(3), Int32(4), Int32(5), Int32(6), Int32(7), Int32(8), Int32(9), Int32(10))
 const _appex_msgs = [
     "Default (unknown) TApplicationException",
     "Unknown method",
@@ -402,9 +402,9 @@ const _appex_msgs = [
     
 type TApplicationException <: Exception
     typ::Int32
-    message::String
+    message::AbstractString
 
-    TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::String="") = new(typ, isempty(message) ? _appex_msgs[typ+1] : message)
+    TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::AbstractString="") = new(typ, isempty(message) ? _appex_msgs[typ+1] : message)
 end
 
 
@@ -418,7 +418,7 @@ type _enum_TMessageType
     ONEWAY::Int32
 end 
 
-const MessageType = _enum_TMessageType(int32(1), int32(2), int32(3), int32(4))
+const MessageType = _enum_TMessageType(Int32(1), Int32(2), Int32(3), Int32(4))
 
 
 
@@ -475,7 +475,7 @@ end
 
 
 const _metacache = Dict{Type, ThriftMeta}()
-const _fillcache = Dict{Uint, Array{Symbol,1}}()
+const _fillcache = Dict{UInt, Array{Symbol,1}}()
 
 meta(typ::Type) = meta(typ, Symbol[], Int[], Dict{Symbol,Any}())
 function meta(typ::Type, optional::Array, numbers::Array, defaults::Dict, cache::Bool=true)
@@ -492,13 +492,13 @@ function meta(typ::Type, optional::Array{Symbol,1}, numbers::Array{Int,1}, defau
     cache ? (_metacache[typ] = m) : m
 
     attribs = ThriftMetaAttribs[]
-    names = typ.names
+    names = fieldnames(typ)
     types = typ.types
     for fldidx in 1:length(names)
         fldtyp = types[fldidx]
         fldttyp = thrift_type(fldtyp)
         fldname = names[fldidx]
-        fldnum = int(isempty(numbers) ? fldidx : numbers[fldidx])
+        fldnum = Int(isempty(numbers) ? fldidx : numbers[fldidx])
         fldrequired = !(fldname in optional)
 
         elmeta = ThriftMeta[]
@@ -513,7 +513,7 @@ function meta(typ::Type, optional::Array{Symbol,1}, numbers::Array{Int,1}, defau
             push!(elmeta, meta(fldtyp.parameters[2]))   # value
         end
 
-        default = haskey(defaults, fldname) ? {defaults[fldname]} : []
+        default = haskey(defaults, fldname) ? Any[defaults[fldname]] : []
 
         push!(attribs, ThriftMetaAttribs(fldnum, fldname, fldttyp, fldrequired, default, elmeta))
     end
@@ -548,7 +548,7 @@ function filled(obj)
     haskey(_fillcache, oid) && return _fillcache[oid]
 
     fill = Symbol[]
-    for fldname in names(typeof(obj))
+    for fldname in fieldnames(typeof(obj))
         isdefined(obj, fldname) && push!(fill, fldname)
     end
     if !isimmutable(obj)
@@ -580,7 +580,7 @@ function copy!(to::Any, from::Any)
     fromtype = typeof(from)
     (totype != fromtype) && error("Can't copy a type $fromtype to $totype")
     fillunset(to)
-    for name in totype.names
+    for name in fieldnames(totype)
         if isfilled(from, name)
             setfield!(to, name, getfield(from, name))
             fillset(to, name)

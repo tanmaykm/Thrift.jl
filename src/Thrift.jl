@@ -1,6 +1,8 @@
+VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
+
 module Thrift
 
-import Base: TcpSocket, TcpServer
+import Base: TCPSocket, TCPServer
 import Base: open, close, isopen, read, write, flush, skip, listen, accept, show, copy!
 
 export open, close, isopen, read, write, flush, skip, listen, accept, show, copy!
@@ -33,13 +35,6 @@ export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
 export TSimpleServer, TTaskServer, TProcessPoolServer, serve
 
 
-# Julia 0.2 compatibility patch
-if isless(Base.VERSION, v"0.3.0-")
-setfield!(a,b,c) = setfield(a,b,c)
-read!(a,b::Array) = read(a,b::Array)
-typealias UTF16String UTF8String
-end
-
 include("base.jl")
 include("codec.jl")
 include("transports.jl")
@@ -49,7 +44,7 @@ include("server.jl")
 
 # enable logging only during debugging
 #using Logging
-#const logger = Logging.configure(filename="thrift.log", level=DEBUG)
+#const logger = Logging.configure(filename="thrift_$(getpid()).log", level=DEBUG)
 #logmsg(s) = debug(s)
 logmsg(s) = nothing
 

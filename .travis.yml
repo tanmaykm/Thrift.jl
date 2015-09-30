@@ -1,25 +1,12 @@
-language: cpp
-compiler:
-  - clang
+language: julia
+os:
+    - osx
+    - linux
+julia:
+    - nightly
+    - 0.4
 notifications:
-  email: false
-env:
-  matrix: 
-    - JULIAVERSION="juliareleases" 
-    - JULIAVERSION="julianightlies" 
-before_install:
-  - cat /etc/issue
-  - sudo add-apt-repository ppa:staticfloat/julia-deps -y
-  - sudo add-apt-repository ppa:staticfloat/${JULIAVERSION} -y
-  - sudo add-apt-repository ppa:boost-latest/ppa -y
-  - sudo apt-get update -qq -y
-  - sudo apt-get install libpcre3-dev julia -y
-  - sudo apt-get install libboost1.55-dev libboost-test1.55-dev libboost-program-options1.55-dev libevent-dev automake libtool flex bison pkg-config g++ libssl-dev
-  #- sudo apt-get install libevent-dev automake libtool flex bison pkg-config g++ libssl-dev build-essential g++ python-dev autotools-dev libicu-dev build-essential libbz2-dev git
-  #- cd /tmp; wget -O boost_1_55_0.tar.gz http://sourceforge.net/projects/boost/files/boost/1.55.0/boost_1_55_0.tar.gz/download; tar xzf boost_1_55_0.tar.gz; cd boost_1_55_0; ./bootstrap.sh; sudo ./b2 --with=all install
-  - currdir=`pwd`; cd /tmp; git clone -b julia https://github.com/tanmaykm/thrift.git; cd thrift; ./bootstrap.sh; ./configure --with-php=no --with-php_extension=no --with-perl=no --with-ruby=no --with-haskell=no --with-go=no --with-d=no --with-nodejs=no --with-erlang=no --with-csharp=no --with-java=no; sudo make install; cd $currdir
+    email: false
 script:
-  - pwd
-  - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir("Thrift"))`); Pkg.pin("Thrift"); Pkg.resolve()'
-  - julia -e 'using Thrift; @assert isdefined(:Thrift); @assert typeof(Thrift) === Module'
-  - currdir=`pwd`; cd test; julia runtests.jl; cd $currdir
+    - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+    - julia -e 'Pkg.clone(pwd()); Pkg.build("Thrift");';
