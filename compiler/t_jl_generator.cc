@@ -143,11 +143,11 @@ string t_jl_generator::julia_type(t_type *type) {
 		t_base_type::t_base tbase = ((t_base_type*) type)->get_base();
 		switch (tbase) {
 		case t_base_type::TYPE_STRING:
-			return "String";
+			return "AbstractString";
 		case t_base_type::TYPE_BOOL:
 			return "Bool";
 		case t_base_type::TYPE_BYTE:
-			return "Uint8";
+			return "UInt8";
 		case t_base_type::TYPE_I16:
 			return "Int16";
 		case t_base_type::TYPE_I32:
@@ -248,7 +248,7 @@ void t_jl_generator::generate_enum(t_enum* tenum) {
 	indent_down();
 	f_types_ << indent() << "end" << endl;
 
-	tenum->resolve_values();
+	// tenum->resolve_values();
 	f_types_ << indent() << "const " << enum_name << " = _enum_" << enum_name << "(";
 	bool first = true;
 	for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
@@ -257,7 +257,7 @@ void t_jl_generator::generate_enum(t_enum* tenum) {
 	    } else {
 	    	f_types_ << ", ";
 	    }
-		f_types_ << "int32(" << (*c_iter)->get_value() << ")";
+		f_types_ << "Int32(" << (*c_iter)->get_value() << ")";
 	}
 	f_types_ << ")" << endl << endl;
 
@@ -298,7 +298,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 			break;
 		case t_base_type::TYPE_BYTE:
 			if(with_conversion) {
-				out << "uint8(" << value->get_integer() << ")";
+				out << "UInt8(" << value->get_integer() << ")";
 			}
 			else {
 				out << value->get_integer();
@@ -306,7 +306,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 			break;
 		case t_base_type::TYPE_I16:
 			if(with_conversion) {
-				out << "int16(" << value->get_integer() << ")";
+				out << "Int16(" << value->get_integer() << ")";
 			}
 			else {
 				out << value->get_integer();
@@ -314,7 +314,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 			break;
 		case t_base_type::TYPE_I32:
 			if(with_conversion) {
-				out << "int32(" << value->get_integer() << ")";
+				out << "Int32(" << value->get_integer() << ")";
 			}
 			else {
 				out << value->get_integer();
@@ -322,7 +322,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 			break;
 		case t_base_type::TYPE_I64:
 			if(with_conversion) {
-				out << "int64(" << value->get_integer() << ")";
+				out << "Int64(" << value->get_integer() << ")";
 			}
 			else {
 				out << value->get_integer();
@@ -330,7 +330,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 			break;
 		case t_base_type::TYPE_DOUBLE:
 			if(with_conversion) {
-				out << "float64(" << value->get_double() << ")";
+				out << "Float64(" << value->get_double() << ")";
 			}
 			else {
 				out << value->get_double();
@@ -340,13 +340,13 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 			throw "compiler error: no const of base type " + t_base_type::t_base_name(tbase);
 		}
 	} else if (type->is_enum()) {
-		out << "int32(" << value->get_integer() << ")";
+		out << "Int32(" << value->get_integer() << ")";
 	} else if (type->is_struct() || type->is_xception()) {
 		throw "compiler error: struct constants are not implemented yet";
 	} else if (type->is_map()) {
 	    t_type* ktype = ((t_map*)type)->get_key_type();
 	    t_type* vtype = ((t_map*)type)->get_val_type();
-	    out << "[" << endl;
+	    out << "Dict(" << endl;
 	    indent_up();
 	    const map<t_const_value*, t_const_value*>& val = value->get_map();
 	    map<t_const_value*, t_const_value*>::const_iterator v_iter;
@@ -363,7 +363,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 	    	out << render_const_value(vtype, v_iter->second, true);
 	    }
 	    indent_down();
-	    indent(out) << endl << "]";
+	    indent(out) << endl << ")";
 	} else if (type->is_list() || type->is_set()) {
 	    t_type* etype;
 	    if (type->is_list()) {
@@ -470,7 +470,7 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 	out << "end # type " << tstruct->get_name() << endl;
 
 	if(need_meta) {
-		string defaults = flddefaults.str().empty() ? "Dict{Symbol,Any}()" : ("{" + flddefaults.str() + "}");
+		string defaults = flddefaults.str().empty() ? "Dict{Symbol,Any}()" : ("Dict{Symbol,Any}(" + flddefaults.str() + ")");
 		string fldns = need_fldnums ? fldnums.str() : "";
 		out << "meta(t::Type{" << tstruct->get_name() << "}) = meta(t, Symbol[" << fldoptional.str() << "], Int[" << fldns << "], " << defaults << ")" << endl;
 	}
