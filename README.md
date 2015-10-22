@@ -78,7 +78,7 @@ Non Blocking Multi Process. | TProcessPoolServer           | Multi process, non 
 Types used as Thrift structures are regular Julia types and the Julia syntax to set and get fields can be used on them. But with fields that are set as optional, it is quite likely that some of them may not have been present in the instance that was read. Similarly, fields that need to be sent need to be explicitly marked as being set. The following methods are exported to assist doing this:
 
 - `get_field(obj::Any, fld::Symbol)` : Gets `obj.fld` if it has been set. Throws an error otherwise.
-- `set_field(obj::Any, fld::Symbol, val)` : Sets `obj.fld = val` and marks the field as being set. The value would be written on the wire when `obj` is serialized. Fields can also be set the regular way, but then they must be marked as being set using the `fillset` method.
+- `set_field!(obj::Any, fld::Symbol, val)` : Sets `obj.fld = val` and marks the field as being set. The value would be written on the wire when `obj` is serialized. Fields can also be set the regular way, but then they must be marked as being set using the `fillset` method.
 - `has_field(obj::Any, fld::Symbol)` : Checks whether field `fld` has been set in `obj`.
 - `clear(obj::Any, fld::Symbol)` : Marks field `fld` of `obj` as unset.
 - `clear(obj::Any)` : Marks all fields of `obj` as unset.

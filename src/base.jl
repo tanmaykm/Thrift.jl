@@ -590,7 +590,10 @@ function copy!(to::Any, from::Any)
 end
 
 isinitialized(obj::Any) = isfilled(obj)
-set_field(obj::Any, fld::Symbol, val) = (setfield!(obj, fld, val); fillset(obj, fld); nothing)
+
+set_field!(obj::Any, fld::Symbol, val) = (setfield!(obj, fld, val); fillset(obj, fld); nothing)
+@deprecate set_field(obj::Any, fld::Symbol, val) set_field!(obj, fld, val)
+
 get_field(obj::Any, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("uninitialized field $fld")
 clear = fillunset
 has_field(obj::Any, fld::Symbol) = isfilled(obj, fld)

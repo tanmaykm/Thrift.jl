@@ -594,7 +594,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			vector<t_field*>::const_iterator x_iter;
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 				t_field* fld= (*x_iter);
-				indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field(exret, :" << chk_keyword(fld->get_name()) << ", ex); return exret)" << endl;
+				indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field!(exret, :" << chk_keyword(fld->get_name()) << ", ex); return exret)" << endl;
 			}
 
 			indent(f_service_) << "rethrow()" << endl;
@@ -720,7 +720,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 			t_field* fld= (*m_iter);
 			string fld_name = chk_keyword(fld->get_name());
-			indent(f_service_) << "set_field(inp, :" << fld_name << ", " << fld_name << ")" << endl;
+			indent(f_service_) << "set_field!(inp, :" << fld_name << ", " << fld_name << ")" << endl;
 		}
 
 		indent(f_service_) << "write(p, inp)" << endl;
