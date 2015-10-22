@@ -21,6 +21,15 @@ using std::vector;
 
 static const string endl = "\n";  // avoid ostream << std::endl flushes
 
+static const std::vector<string> julia_keywords = {
+	"if", "else", "elseif", "while", "for", "begin", "end", "quote",
+	"try", "catch", "return", "local", "abstract", "function", "macro",
+	"ccall", "finally", "typealias", "break", "continue", "type",
+	"global", "module", "using", "import", "export", "const", "let",
+	"bitstype", "do", "baremodule", "importall", "immutable"
+};
+
+
 /**
  * Julia code generator.
  *
@@ -67,6 +76,8 @@ public:
 	void generate_service_user_function_comments(t_service* tservice);
 	void generate_service_client(t_service* tservice);
 	void add_to_module(t_service* tservice);
+	bool is_keyword(const string &value);
+	string chk_keyword(const string &value);
 
 private:
 
@@ -229,6 +240,18 @@ void t_jl_generator::generate_typedef(t_typedef* ttypedef) {
 	module_exports_ << "export " << ttypedef->get_symbolic() << " # typealias for " << julia_type(t) << endl;
 }
 
+bool t_jl_generator::is_keyword(const string &value) {
+	return std::find(julia_keywords.begin(), julia_keywords.end(), value) != julia_keywords.end();
+}
+
+string t_jl_generator::chk_keyword(const string &value) {
+	if(is_keyword(value) == true) {
+		pwarning(0, "Encountered Julia keyword \"%s\" in IDL file. It will be generated as \"_%s\". Consider renaming.", value.c_str(), value.c_str());
+		return "_" + value;
+	}
+	return value;
+}
+
 /**
  * Generates code for an enumerated type. Done using a class to scope
  * the values.
@@ -243,7 +266,7 @@ void t_jl_generator::generate_enum(t_enum* tenum) {
 	indent_up();
 	vector<t_enum_value*>::const_iterator c_iter;
 	for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-		f_types_ << indent() << (*c_iter)->get_name() << "::Int32" << endl;
+		f_types_ << indent() << chk_keyword((*c_iter)->get_name()) << "::Int32" << endl;
 	}
 	indent_down();
 	f_types_ << indent() << "end" << endl;
@@ -269,7 +292,7 @@ void t_jl_generator::generate_enum(t_enum* tenum) {
  */
 void t_jl_generator::generate_const(t_const* tconst) {
 	t_type* type = tconst->get_type();
-	string name = tconst->get_name();
+	string name = chk_keyword(tconst->get_name());
 	t_const_value* value = tconst->get_value();
 
 	indent(f_consts_) << "const " << name << " = " << render_const_value(type, value, true);
@@ -405,7 +428,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
  */
 void t_jl_generator::generate_struct(t_struct* tstruct) {
 	generate_jl_struct(f_types_, tstruct, false);
-	module_exports_ << "export " << tstruct->get_name() << " # struct" << endl;
+	module_exports_ << "export " << chk_keyword(tstruct->get_name()) << " # struct" << endl;
 }
 
 /**
@@ -416,7 +439,7 @@ void t_jl_generator::generate_struct(t_struct* tstruct) {
  */
 void t_jl_generator::generate_xception(t_struct* txception) {
 	generate_jl_struct(f_types_, txception, true);
-	module_exports_ << "export " << txception->get_name() << " # exception" << endl;
+	module_exports_ << "export " << chk_keyword(txception->get_name()) << " # exception" << endl;
 }
 
 /**
@@ -425,8 +448,9 @@ void t_jl_generator::generate_xception(t_struct* txception) {
 void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception) {
 	const vector<t_field*>& members = tstruct->get_members();
 	vector<t_field*>::const_iterator m_iter;
+	string struct_name = chk_keyword(tstruct->get_name());
 
-	indent(out) << endl << "type " << tstruct->get_name();
+	indent(out) << endl << "type " << struct_name;
 
 	if (is_exception) {
 		out << " <: Exception";
@@ -442,11 +466,13 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 	int default_fld_num = 1;
 	for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 		t_field* fld= (*m_iter);
-		indent(out) << fld->get_name() << "::" << julia_type(fld->get_type()) << endl;
+		string fld_name = chk_keyword(fld->get_name());
+
+		indent(out) << fld_name << "::" << julia_type(fld->get_type()) << endl;
 		if (fld->get_req() == t_field::T_OPTIONAL) {
 			need_meta = true;
 			if(!fldoptional.str().empty()) (fldoptional << ",");
-			fldoptional << ":" << fld->get_name();
+			fldoptional << ":" << fld_name;
 		}
 
 		if(fld->get_key() != default_fld_num) {
@@ -459,20 +485,20 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 			need_meta = true;
 			t_type* type = get_true_type(fld->get_type());
 			if(!flddefaults.str().empty()) (flddefaults << ", ");
-			flddefaults << ":" << fld->get_name() << " => " << render_const_value(type, fld->get_value(), true);
+			flddefaults << ":" << fld_name << " => " << render_const_value(type, fld->get_value(), true);
 		}
 		default_fld_num++;
 	}
 	if(default_fld_num > 1) {
-		indent(out) << tstruct->get_name() << "() = (o=new(); fillunset(o); o)" << endl;
+		indent(out) << struct_name << "() = (o=new(); fillunset(o); o)" << endl;
 	}
 	indent_down();
-	out << "end # type " << tstruct->get_name() << endl;
+	out << "end # type " << struct_name << endl;
 
 	if(need_meta) {
 		string defaults = flddefaults.str().empty() ? "Dict{Symbol,Any}()" : ("Dict{Symbol,Any}(" + flddefaults.str() + ")");
 		string fldns = need_fldnums ? fldnums.str() : "";
-		out << "meta(t::Type{" << tstruct->get_name() << "}) = meta(t, Symbol[" << fldoptional.str() << "], Int[" << fldns << "], " << defaults << ")" << endl;
+		out << "meta(t::Type{" << struct_name << "}) = meta(t, Symbol[" << fldoptional.str() << "], Int[" << fldns << "], " << defaults << ")" << endl;
 	}
 }
 
@@ -485,7 +511,7 @@ void t_jl_generator::add_to_module(t_service* tservice) {
 	vector<t_function*> functions = tservice->get_functions();
 	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
-		module_exports_ << ", " << (*f_iter)->get_name();
+		module_exports_ << ", " << chk_keyword((*f_iter)->get_name());
 	}
 	module_exports_ << " # service " << service_name_ << endl;
 }
@@ -503,14 +529,15 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
-		string fname = tfunction->get_name();
+		string fname = chk_keyword(tfunction->get_name());
 
 		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << fname << "_result))" << endl;
 	}
 
 	t_service* extends_service = tservice->get_extends();
 	if (extends_service != NULL) {
-		indent(f_service_) << "extend(p.tp, " << extends_service->get_name() << "Processor().tp) # using " << extends_service->get_name() << endl;
+		string extends_service_name = chk_keyword(extends_service->get_name());
+		indent(f_service_) << "extend(p.tp, " << extends_service_name << "Processor().tp) # using " << extends_service_name << endl;
 	}
 
 	indent(f_service_) << "p" << endl;
@@ -520,7 +547,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		t_struct* arglist = tfunction->get_arglist();
-		string fname = tfunction->get_name();
+		string fname = chk_keyword(tfunction->get_name());
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
@@ -548,7 +575,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 					f_service_ << ", ";
 				}
 				t_field* fld= (*m_iter);
-				f_service_ << "inp." << fld->get_name();
+				f_service_ << "inp." << chk_keyword(fld->get_name());
 			}
 			f_service_ << ")" << endl;
 			if(!ttype->is_void()) {
@@ -567,7 +594,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			vector<t_field*>::const_iterator x_iter;
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 				t_field* fld= (*x_iter);
-				indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field(exret, :" << fld->get_name() << ", ex); return exret)" << endl;
+				indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field(exret, :" << chk_keyword(fld->get_name()) << ", ex); return exret)" << endl;
 			}
 
 			indent(f_service_) << "rethrow()" << endl;
@@ -589,7 +616,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 					f_service_ << ", ";
 				}
 				t_field* fld= (*m_iter);
-				f_service_ << "inp." << fld->get_name();
+				f_service_ << "inp." << chk_keyword(fld->get_name());
 			}
 			f_service_ << "))" << endl;
 		}
@@ -612,7 +639,7 @@ void t_jl_generator::generate_service_user_function_comments(t_service* tservice
 		t_function* tfunction = (*f_iter);
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* arglist = tfunction->get_arglist();
-		string fname = tfunction->get_name();
+		string fname = chk_keyword(tfunction->get_name());
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
 
@@ -628,7 +655,7 @@ void t_jl_generator::generate_service_user_function_comments(t_service* tservice
 				f_service_ << ", ";
 			}
 			t_field* fld= (*m_iter);
-			f_service_ << fld->get_name() << "::" << julia_type(fld->get_type());
+			f_service_ << chk_keyword(fld->get_name()) << "::" << julia_type(fld->get_type());
 		}
 		f_service_ << ")" << endl;
 		f_service_ << "#     # returns " << (ttype->is_void() ? "nothing" : julia_type(ttype)) << endl;
@@ -637,7 +664,7 @@ void t_jl_generator::generate_service_user_function_comments(t_service* tservice
 			vector<t_field*>::const_iterator x_iter;
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 				t_field* fld= (*x_iter);
-				f_service_ << "#     # throws " << fld->get_name() << "::" << julia_type(fld->get_type()) << endl;
+				f_service_ << "#     # throws " << chk_keyword(fld->get_name()) << "::" << julia_type(fld->get_type()) << endl;
 			}
 		}
 	}
@@ -652,7 +679,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		f_types_ << endl << "abstract " << service_name_client << "Base" << endl;
 	}
 	else {
-		f_types_ << endl << "typealias " << service_name_client << "Base " << extends_service->get_name() << "ClientBase" << endl;
+		f_types_ << endl << "typealias " << service_name_client << "Base " << chk_keyword(extends_service->get_name()) << "ClientBase" << endl;
 	}
 
 	f_service_ << "type " << service_name_client << " <: " << service_name_client << "Base" << endl;
@@ -669,7 +696,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		t_function* tfunction = (*f_iter);
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* arglist = tfunction->get_arglist();
-		string fname = tfunction->get_name();
+		string fname = chk_keyword(tfunction->get_name());
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
 
@@ -680,7 +707,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		vector<t_field*>::const_iterator m_iter;
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 			t_field* fld= (*m_iter);
-			f_service_ << ", " << fld->get_name() << "::" << julia_type(fld->get_type());
+			f_service_ << ", " << chk_keyword(fld->get_name()) << "::" << julia_type(fld->get_type());
 		}
 		f_service_ << ")" << endl;
 		indent_up();
@@ -692,7 +719,8 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 			t_field* fld= (*m_iter);
-			indent(f_service_) << "set_field(inp, :" << fld->get_name() << ", " << fld->get_name() << ")" << endl;
+			string fld_name = chk_keyword(fld->get_name());
+			indent(f_service_) << "set_field(inp, :" << fld_name << ", " << fld_name << ")" << endl;
 		}
 
 		indent(f_service_) << "write(p, inp)" << endl;
@@ -711,7 +739,8 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 			vector<t_field*>::const_iterator x_iter;
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 				t_field* fld= (*x_iter);
-				indent(f_service_) << "has_field(outp, :" << fld->get_name() << ") && throw(get_field(outp, :" << fld->get_name() << "))" << endl;
+				string fld_name = chk_keyword(fld->get_name());
+				indent(f_service_) << "has_field(outp, :" << fld_name << ") && throw(get_field(outp, :" << fld_name << "))" << endl;
 			}
 		}
 
@@ -733,16 +762,17 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
+		string function_name = chk_keyword(tfunction->get_name());
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* arglist = tfunction->get_arglist();
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
 
-		indent(f_service_) << "# types encapsulating arguments and return values of method " << tfunction->get_name() << endl;
+		indent(f_service_) << "# types encapsulating arguments and return values of method " << function_name << endl;
 		generate_jl_struct(f_service_, arglist, false);
 		f_service_ << endl;
 
-		indent(f_service_) << "type " << tfunction->get_name() << "_result" << endl;
+		indent(f_service_) << "type " << function_name << "_result" << endl;
 		indent_up();
 		if(!ttype->is_void()) {
 			indent(f_service_) << "success::" << julia_type(ttype) << endl;
@@ -762,6 +792,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 			int xid = 1;
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 				t_field* fld= (*x_iter);
+				string fld_name = chk_keyword(fld->get_name());
 				if(first) {
 					first = false;
 				}
@@ -769,20 +800,20 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 					result_fld_names << ", ";
 					result_fld_ids << ", ";
 				}
-				indent(f_service_) << fld->get_name() << "::" << julia_type(fld->get_type()) << endl;
-				result_fld_names << ":" << fld->get_name();
+				indent(f_service_) << fld_name << "::" << julia_type(fld->get_type()) << endl;
+				result_fld_names << ":" << fld_name;
 				result_fld_ids << xid++;
 			}
 		}
 
 		if(!ttype->is_void() || has_xceptions) {
-			indent(f_service_) << tfunction->get_name() << "_result() = (o=new(); fillunset(o); o)" << endl;
-			if(!ttype->is_void()) indent(f_service_) << tfunction->get_name() << "_result(success) = (o=new(); fillset(o, :success); o.success=success; o)" << endl;
+			indent(f_service_) << function_name << "_result() = (o=new(); fillunset(o); o)" << endl;
+			if(!ttype->is_void()) indent(f_service_) << function_name << "_result(success) = (o=new(); fillset(o, :success); o.success=success; o)" << endl;
 		}
 
 		indent_down();
-		indent(f_service_) << "end # type " << tfunction->get_name() << "_result" << endl;
-		indent(f_service_) << "meta(t::Type{" << tfunction->get_name() << "_result}) = meta(t, Symbol[" << result_fld_names.str() << "], Int[" << result_fld_ids.str() << "], Dict{Symbol,Any}())" << endl << endl;
+		indent(f_service_) << "end # type " << function_name << "_result" << endl;
+		indent(f_service_) << "meta(t::Type{" << function_name << "_result}) = meta(t, Symbol[" << result_fld_names.str() << "], Int[" << result_fld_ids.str() << "], Dict{Symbol,Any}())" << endl << endl;
 	}
 }
 
@@ -799,7 +830,7 @@ void t_jl_generator::generate_service(t_service* tservice) {
 
 	t_service* extends_service = tservice->get_extends();
 	if (extends_service != NULL) {
-		f_service_ << "# service extends " << extends_service->get_name() << endl;
+		f_service_ << "# service extends " << chk_keyword(extends_service->get_name()) << endl;
 	}
 
 	f_service_ << endl << endl;
