@@ -10,7 +10,7 @@ include("gen-jl/arithmetic/arithmetic_types.jl");
 include("gen-jl/arithmetic/Calc.jl");
 
 function calcclnt(niter::Int)
-    clnt_transport = TSocket(9999)
+    clnt_transport = TSocket(19999)
     #proto = TCompactProtocol(clnt_transport)
     proto = TBinaryProtocol(clnt_transport)
 
@@ -22,9 +22,9 @@ function calcclnt(niter::Int)
     nops = length(OPS)
     for idx in 1:niter
         try
-            op = string(OPS[int((nops-1)*rand())+1])
-            p1 = int32(100*rand())
-            p2 = int32(100*rand())
+            op = string(OPS[round(Int, (nops-1)*rand())+1])
+            p1 = round(Int32, 100*rand())
+            p2 = round(Int32, 100*rand())
             res = calculate(clnt, op, p1, p2)
             println("$op ( $p1, $p2 ) = $res")
         catch ex
@@ -37,7 +37,7 @@ function calcclnt(niter::Int)
 end
 
 function floatcalcclnt(niter::Int)
-    clnt_transport = TSocket(9999)
+    clnt_transport = TSocket(19999)
     #proto = TCompactProtocol(clnt_transport)
     proto = TBinaryProtocol(clnt_transport)
 
@@ -50,7 +50,7 @@ function floatcalcclnt(niter::Int)
     for idx in 1:niter
         try
             m = (idx > 3) ? 50 : 8
-            op = string(FLOAT_OPS[int((nops-1)*rand())+1])
+            op = string(FLOAT_OPS[round(Int, (nops-1)*rand())+1])
             p1 = (2^m) * randn()
             p2 = (2^m) * randn()
             res = float_calculate(clnt, op, p1, p2)
