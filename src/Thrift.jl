@@ -15,7 +15,7 @@ export writeMessageBegin, writeMessageEnd, writeStructBegin, writeStructEnd, wri
 export readMessageBegin, readMessageEnd, readStructBegin, readStructEnd, readFieldBegin, readFieldEnd, readMapBegin, readMapEnd, readListBegin, readListEnd, readSetBegin, readSetEnd, readBool, readByte, readI16, readI32, readI64, readDouble, readString
 export ApplicationExceptionType, MessageType, TException, TApplicationException
 export ThriftMetaAttribs, ThriftMeta, meta
-export isinitialized, set_field, set_field!, get_field, clear, has_field, fillunset, fillset, filled, isfilled
+export isinitialized, set_field, set_field!, get_field, clear, has_field, fillunset, fillset, filled, isfilled, thriftbuild
 
 
 # from transports.jl
@@ -34,6 +34,11 @@ export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
 # from server.jl
 export TSimpleServer, TTaskServer, TProcessPoolServer, serve
 
+if isless(Base.VERSION, v"0.4.0-")
+fld_type(o, fld) = fieldtype(o, fld)
+else
+fld_type{T}(o::T, fld) = fieldtype(T, fld)
+end 
 
 include("base.jl")
 include("codec.jl")

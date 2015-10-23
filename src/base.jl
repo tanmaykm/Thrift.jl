@@ -575,26 +575,30 @@ end
 ##
 # utility methods
 # utility methods
-function copy!(to::Any, from::Any)
-    totype = typeof(to)
-    fromtype = typeof(from)
-    (totype != fromtype) && error("Can't copy a type $fromtype to $totype")
+function copy!{T}(to::T, from::T)
     fillunset(to)
     for name in fieldnames(totype)
         if isfilled(from, name)
-            setfield!(to, name, getfield(from, name))
-            fillset(to, name)
+            set_field!(to, name, getfield(from, name))
         end
     end
     nothing
 end
 
-isinitialized(obj::Any) = isfilled(obj)
+isinitialized(obj) = isfilled(obj)
 
-set_field!(obj::Any, fld::Symbol, val) = (setfield!(obj, fld, val); fillset(obj, fld); nothing)
-@deprecate set_field(obj::Any, fld::Symbol, val) set_field!(obj, fld, val)
+set_field!(obj, fld::Symbol, val) = (setfield!(obj, fld, val); fillset(obj, fld); nothing)
+@deprecate set_field(obj, fld::Symbol, val) set_field!(obj, fld, val)
 
-get_field(obj::Any, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("uninitialized field $fld")
+get_field(obj, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("uninitialized field $fld")
 clear = fillunset
-has_field(obj::Any, fld::Symbol) = isfilled(obj, fld)
+has_field(obj, fld::Symbol) = isfilled(obj, fld)
 
+function thriftbuild{T}(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}())
+    obj = T()
+    for (n,v) in nv
+        fldtyp = fld_type(obj, n)
+        set_field!(obj, n, isa(v, fldtyp) ? v : convert(fldtyp, v))
+    end
+    obj
+end

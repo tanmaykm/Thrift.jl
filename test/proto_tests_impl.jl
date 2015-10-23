@@ -6,8 +6,7 @@ function test_hello(name::AbstractString)
 end
 
 function test_exception()
-    ex = InvalidOperation()
-    set_field!(ex, :oper, "test_exception")
+    ex = thriftbuild(InvalidOperation, Dict(:oper => "test_exception"))
     throw(ex)
 end
 
@@ -25,8 +24,7 @@ function test_enum(enum_val::Int32)
     elseif enum_val == TestEnum.TWO
         return TestEnum.TWENTY
     end
-    ex = InvalidOperation()
-    set_field!(ex, :oper, "test_enum")
+    ex = thriftbuild(InvalidOperation, Dict(:oper => "test_enum"))
     throw(ex)
 end
 
