@@ -30,7 +30,7 @@ protocol_factory(x) = TBinaryProtocol(x)
 function make_server()
     # create a server instance with our choice of protocol and transport
     srvr_processor = ProtoTestsProcessor()
-    srvr_transport = TServerSocket(9999)
+    srvr_transport = TServerSocket(19999)
 
     #srvr = TProcessPoolServer(srvr_transport, srvr_processor, transport_factory, protocol_factory, transport_factory, protocol_factory)
     #srvr = TTaskServer(srvr_transport, srvr_processor, transport_factory, protocol_factory, transport_factory, protocol_factory)
@@ -55,7 +55,7 @@ finally
 end
 
 # create a client instance with our choice of protocol and transport
-clnt_transport = TSocket(9999)
+clnt_transport = TSocket(19999)
 #proto = TCompactProtocol(clnt_transport)
 proto = TBinaryProtocol(clnt_transport)
 clnt = ProtoTestsClient(proto)

@@ -18,7 +18,7 @@ from thrift.protocol import TBinaryProtocol, TCompactProtocol
 def calcclnt(niter):
     try:
         # Make socket
-        transport = TSocket.TSocket('localhost', 9999)
+        transport = TSocket.TSocket('localhost', 19999)
 
         # Buffering is critical. Raw sockets are very slow
         transport = TTransport.TBufferedTransport(transport)
@@ -54,7 +54,7 @@ def calcclnt(niter):
 def floatcalcclnt(niter):
     try:
         # Make socket
-        transport = TSocket.TSocket('localhost', 9999)
+        transport = TSocket.TSocket('localhost', 19999)
 
         # Buffering is critical. Raw sockets are very slow
         transport = TTransport.TBufferedTransport(transport)

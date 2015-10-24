@@ -6,7 +6,7 @@ include("gen-jl/hello/hello.jl");
 import hello.SayHelloClient, hello.hello_to
 
 # create a client instance with our choice of protocol and transport
-clnt_transport = TSocket(9999)
+clnt_transport = TSocket(19999)
 proto = TBinaryProtocol(clnt_transport)
 clnt = SayHelloClient(proto)
 
