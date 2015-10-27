@@ -97,7 +97,7 @@ instantiate(t::Type) = (t.abstract) ? error("can not instantiate abstract type $
 for _typ in _TJTypes
     if !iscontainer(_typ)
         @eval begin
-            write(p::TProtocol, val::$(_typ)) = nothing
+            write(p::TProtocol, val::$(_typ)) = 0
             read(p::TProtocol, ::Type{$(_typ)}) = nothing
             skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
         end
@@ -108,7 +108,7 @@ writeMessageBegin(p::TProtocol, name::AbstractString, mtype::Int32, seqid::Integ
 writeMessageEnd(p::TProtocol)                                                           = nothing
 writeStructBegin(p::TProtocol, name::AbstractString)                                    = nothing
 writeStructEnd(p::TProtocol)                                                            = nothing
-writeFieldBegin(p::TProtocol, name::AbstractString, ttype::Int32, fid::Integer)         = nothing 
+writeFieldBegin(p::TProtocol, name::AbstractString, ttype::Int32, fid::Integer)         = nothing
 writeFieldEnd(p::TProtocol)                                                             = nothing
 writeFieldStop(p::TProtocol)                                                            = nothing
 writeMapBegin(p::TProtocol, ktype::Int32, vtype::Int32, size::Integer)                  = nothing
@@ -147,7 +147,7 @@ readString(p::TProtocol)           = read(p, UTF8String)
 
 
 function skip{T<:TSTRUCT}(p::TProtocol, ::Type{T})
-    #logmsg("skip TSTRUCT")
+    @logmsg("skip TSTRUCT")
     name = readStructBegin(p)
     while true
         (name, ttype, id) = readFieldBegin(p)
@@ -165,16 +165,16 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
     (t == Any) && (name != nothing) && (t = eval(symbol(name)))
 
     (t == Any) && error("can not read unknown struct type")
-    if val == nothing 
+    if val == nothing
         val = instantiate(t)
     else
         !issubtype(typeof(val), t) && error("can not read $t into $(typeof(val))")
     end
 
-    #logmsg("read TSTRUCT $t")
+    @logmsg("read TSTRUCT $t")
 
     m = meta(t)
-    #logmsg("struct meta: $m")
+    @logmsg("struct meta: $m")
     fillunset(val)
     while true
         (name, ttyp, id) = readFieldBegin(p)
@@ -216,8 +216,8 @@ end
 function write(p::TProtocol, val::TSTRUCT)
     t = typeof(val)
     m = meta(t)
-    #logmsg("write TSTRUCT $t")
-    #logmsg("struct meta: $m")
+    @logmsg("write TSTRUCT $t")
+    @logmsg("struct meta: $m")
     writeStructBegin(p, string(t))
 
     for attrib in m.ordered
@@ -235,7 +235,7 @@ function write(p::TProtocol, val::TSTRUCT)
 end
 
 function skip{T<:TMAP}(p::TProtocol, ::Type{T})
-    #logmsg("skip TMAP")
+    @logmsg("skip TMAP")
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
@@ -252,7 +252,7 @@ function read{T<:TMAP}(p::TProtocol, ::Type{T}, val=nothing)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
 
-    #logmsg("read TMAP key: $jktype, val: $jvtype")
+    @logmsg("read TMAP key: $jktype, val: $jvtype")
 
     if val == nothing
         val = Dict{jktype,jvtype}()
@@ -272,7 +272,7 @@ end
 
 function write(p::TProtocol, val::TMAP)
     (ktype,vtype) = eltype(val).types
-    #logmsg("write TMAP key: $ktype, val: $vtype")
+    @logmsg("write TMAP key: $ktype, val: $vtype")
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
         write(p, k)
@@ -282,7 +282,7 @@ function write(p::TProtocol, val::TMAP)
 end
 
 function skip{T<:TSET}(p::TProtocol, ::Type{T})
-    #logmsg("skip TSET")
+    @logmsg("skip TSET")
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -293,7 +293,7 @@ end
 
 function read{T<:TSET}(p::TProtocol, ::Type{T}, val=nothing)
     (etype, size) = readSetBegin(p)
-    #logmsg("read TSET, etype: $etype, size: $size")
+    @logmsg("read TSET, etype: $etype, size: $size")
     jetype = julia_type(etype)
     if val == nothing
         val = Set{jetype}()
@@ -311,7 +311,7 @@ end
 function write(p::TProtocol, val::TSET)
     jetype = eltype(val)
     tetype = thrift_type(jetype)
-    #logmsg("write TSET, etype: $jetype, size: $(length(val))")
+    @logmsg("write TSET, etype: $jetype, size: $(length(val))")
     writeSetBegin(p, tetype, length(val))
 
     if iscontainer(tetype)
@@ -327,7 +327,7 @@ function write(p::TProtocol, val::TSET)
 end
 
 function skip{T<:TLIST}(p::TProtocol, ::Type{T})
-    #logmsg("skip TLIST")
+    @logmsg("skip TLIST")
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -339,7 +339,7 @@ end
 function read{T<:TLIST}(p::TProtocol, ::Type{T}, val=nothing)
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
-    #logmsg("read TLIST, etype: $jetype, size: $size")
+    @logmsg("read TLIST, etype: $jetype, size: $size")
     if val == nothing
         val = Array(jetype,0)
     else
@@ -354,7 +354,7 @@ function read{T<:TLIST}(p::TProtocol, ::Type{T}, val=nothing)
 end
 
 function write(p::TProtocol, val::TLIST)
-    #logmsg("write TLIST, etype: $(eltype(val)), size: $(length(val))")
+    @logmsg("write TLIST, etype: $(eltype(val)), size: $(length(val))")
     writeListBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
     for v in val
@@ -377,7 +377,7 @@ type _enum_TApplicationExceptionTypes
     INVALID_MESSAGE_TYPE::Int32
     WRONG_METHOD_NAME::Int32
     BAD_SEQUENCE_ID::Int32
-    MISSING_RESULT::Int32 
+    MISSING_RESULT::Int32
     INTERNAL_ERROR::Int32
     PROTOCOL_ERROR::Int32
     INVALID_TRANSFORM::Int32
@@ -398,8 +398,8 @@ const _appex_msgs = [
     "Invalid transform",
     "Invalid protocol",
     "Unsupported client type"
-]   
-    
+]
+
 type TApplicationException <: Exception
     typ::Int32
     message::AbstractString
@@ -416,7 +416,7 @@ type _enum_TMessageType
     REPLY::Int32
     EXCEPTION::Int32
     ONEWAY::Int32
-end 
+end
 
 const MessageType = _enum_TMessageType(Int32(1), Int32(2), Int32(3), Int32(4))
 
