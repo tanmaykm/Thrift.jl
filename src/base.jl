@@ -597,7 +597,7 @@ has_field(obj, fld::Symbol) = isfilled(obj, fld)
 function thriftbuild{T}(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}())
     obj = T()
     for (n,v) in nv
-        fldtyp = fld_type(obj, n)
+        fldtyp = fieldtype(T, n)
         set_field!(obj, n, isa(v, fldtyp) ? v : convert(fldtyp, v))
     end
     obj
