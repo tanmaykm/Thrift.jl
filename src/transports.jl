@@ -15,11 +15,45 @@ type TTransportException <: Exception
     TTransportException(typ=TransportExceptionTypes.UNKNOWN, message::AbstractString="") = new(typ, message)
 end
 
-# generic transport methods
-read{T <: TTransport}(t::T, sz::Integer) = read(t, Array(UInt8, sz))
-# TODO: can have more common methods by naming wrapped transports as io
 
-# framed transport
+# TODO: Thrift SASL server transport
+# Thrift SASL client transport
+type TSASLClientTransport <: TTransport
+    tp::TTransport
+    mech::ASCIIString
+    callback::Function
+    rbuff::IOBuffer
+    wbuff::IOBuffer
+
+    function TSASLClientTransport(tp::TTransport, mech::ASCIIString=SASL_MECH_PLAIN, callback::Function=sasl_callback_default)
+        validate_sasl_mech(mech)
+        new(TFramedTransport(tp), mech, callback, PipeBuffer(), PipeBuffer())
+    end
+end
+
+rawio(t::TSASLClientTransport)  = rawio(t.tp)
+close(t::TSASLClientTransport)  = close(t.tp)
+isopen(t::TSASLClientTransport) = isopen(t.tp)
+flush(t::TSASLClientTransport)  = flush(t.tp)
+
+read!(t::TSASLClientTransport, buff::Array{UInt8,1}) = read!(t.tp, buff)
+read(t::TSASLClientTransport, UInt8) = read(t.tp, UInt8)
+function write(t::TSASLClientTransport, buff::Array{UInt8,1})
+    @logmsg("TSASLClientTransport buffering $(length(buff)) bytes")
+    write(t.tp, buff)
+end
+function write(t::TSASLClientTransport, b::UInt8)
+    @logmsg("TSASLClientTransport buffering 1 byte")
+    write(t.tp, b)
+end
+
+function open(t::TSASLClientTransport)
+    open(t.tp)
+    sasl_negotiate(rawio(t), t.mech, t.callback)
+end
+
+
+# Thrift Framed Transport
 type TFramedTransport <: TTransport
     tp::TTransport
     rbuff::IOBuffer
@@ -31,29 +65,59 @@ open(t::TFramedTransport)   = open(t.tp)
 close(t::TFramedTransport)  = close(t.tp)
 isopen(t::TFramedTransport) = isopen(t.tp)
 
-_readframesz(t::TFramedTransport) = _read_fixed(rawio(t), UInt32(0), 4, true)
-function _readframe(t::TFramedTransport)
-    sz = _readframesz(t)
-    write(rbuff, read(t.tp, sz))
+readframesz(t::TFramedTransport) = _read_fixed(t.tp, UInt32(0), 4, true)
+function readframe(t::TFramedTransport)
+    sz = readframesz(t)
+    write(t.rbuff, read!(t.tp, Array(UInt8, sz)))
     nothing
 end
-function read(t::TFramedTransport, buff::Array{UInt8,1})
-    (t.rbuff.size <= length(buff)) && (read(t.rbuff, buff); buff)
-    _readframe(t)
-    read(t, buff)
+
+function read!(t::TFramedTransport, buff::Array{UInt8,1})
+    ntotal = length(buff)
+    nread = 0
+
+    while nread < ntotal
+        navlb = nb_available(t.rbuff)
+        nremain = ntotal - nread
+        if navlb < nremain
+            readframe(t)
+            navlb = nb_available(t.rbuff)
+        end
+        nbuff = min(navlb, nremain)
+        Base.read_sub(t.rbuff, buff, nread+1, nbuff)
+        nread += nbuff
+    end
+    buff
+end
+function read(t::TFramedTransport, UInt8)
+    navlb = nb_available(t.rbuff)
+    if navlb == 0
+        readframe(t)
+    end
+    return read(t.rbuff, UInt8)
 end
 
-write(t::TFramedTransport, buff::Array{UInt8,1}) = (write(t.wbuff, buff); nothing)
+function write(t::TFramedTransport, buff::Array{UInt8,1})
+    @logmsg("TFramedTransport buffering $(length(buff)) bytes")
+    write(t.wbuff, buff)
+end
+function write(t::TFramedTransport, b::UInt8)
+    @logmsg("TFramedTransport buffering 1 byte")
+    write(t.wbuff, b)
+end
 function flush(t::TFramedTransport)
     szbuff = IOBuffer()
-    _write_fixed(szbuff, UInt32(t.wbuff.size), true)
-    write(t.tp, takebuf_array(szbuff))
-    write(t.tp, takebuf_array(wbuff))
+    navlb = nb_available(t.wbuff)
+    @logmsg("sending data of length $navlb")
+    _write_fixed(szbuff, UInt32(navlb), true)
+    nbyt = write(t.tp, takebuf_array(szbuff))
+    nbyt += write(t.tp, takebuf_array(t.wbuff))
+    @logmsg("wrote frame of size $nbyt")
     flush(t.tp)
 end
 
 
-# thrift socket transport 
+# Thrift Socket Transport
 type TSocket <: TTransport
     host::AbstractString
     port::Integer
@@ -80,7 +144,7 @@ open(tsock::TServerSocket) = nothing
 open(tsock::TSocket) = (!isopen(tsock) && (tsock.io = connect(tsock.host, tsock.port)); nothing)
 
 listen(tsock::TServerSocket) = (tsock.io = isempty(tsock.host) ? listen(tsock.port) : listen(parseip(tsock.host), tsock.port); nothing)
-function accept(tsock::TServerSocket) 
+function accept(tsock::TServerSocket)
     accsock = TSocket(tsock.host, tsock.port)
     accsock.io = accept(tsock.io)
     accsock
@@ -88,9 +152,9 @@ end
 
 close(tsock::TSocketBase) = (isopen(tsock.io) && close(tsock.io); nothing)
 rawio(tsock::TSocketBase) = tsock.io
-read(tsock::TSocketBase, buff::Array{UInt8,1}) = (read(tsock.io, buff); buff)
+read!(tsock::TSocketBase, buff::Array{UInt8,1}) = read!(tsock.io, buff)
+read(tsock::TSocketBase, UInt8) = read(tsock.io, UInt8)
 write(tsock::TSocketBase, buff::Array{UInt8,1}) = write(tsock.io, buff)
+write(tsock::TSocketBase, b::UInt8) = write(tsock, b)
 flush(tsock::TSocketBase)   = flush(tsock.io)
 isopen(tsock::TSocketBase)  = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
-
-
