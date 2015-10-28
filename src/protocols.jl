@@ -11,9 +11,9 @@ const ProtocolExceptionType = _enum_TProtocolExceptionTypes(Int32(0), Int32(1), 
 
 type TProtocolException
     typ::Int32
-    message::AbstractString
+    message::UTF8String
 
-    TProtocolException(typ::Int32=ProtocolExceptionType.UNKNOWN, message::AbstractString="") = new(typ, message)
+    TProtocolException(typ::Int32=ProtocolExceptionType.UNKNOWN, message::AbstractString="") = new(typ, utf8(message))
 end
 
 
@@ -37,7 +37,8 @@ function writeMessageBegin(p::TBinaryProtocol, name::AbstractString, mtype::Int3
     nbyt = 0
     @logmsg("writeMessageBegin name: $name, mtype: $mtype, seqid: $seqid")
     if p.strict_write
-        nbyt += writeI32(p, reinterpret(Int32, UInt32(BINARY_VERSION_1 | mtype)))
+        nbyt += write(p, BINARY_VERSION_1 | UInt32(mtype))
+        @logmsg("wrote protocol version header $nbyt bytes")
         nbyt += writeString(p, name)
         nbyt += writeI32(p, seqid)
     else
@@ -77,27 +78,36 @@ writeSetBegin(p::TBinaryProtocol, etype::Int32, size::Integer) = writeCollection
 
 write(p::TBinaryProtocol, b::Bool)              = write(p, b ? 0x01 : 0x00)
 write(p::TBinaryProtocol, i::TBYTE)             = _write_fixed(p.t, i, true)
-write(p::TBinaryProtocol, i::TI16)              = _write_fixed(p.t, reinterpret(UInt16,i), true)
-write(p::TBinaryProtocol, i::TI32)              = _write_fixed(p.t, reinterpret(UInt32,i), true)
-write(p::TBinaryProtocol, i::TI64)              = _write_fixed(p.t, reinterpret(UInt64,i), true)
+
+write(p::TBinaryProtocol, i::TI16)              = write(p, reinterpret(UInt16,i))
+write(p::TBinaryProtocol, i::UInt16)            = _write_fixed(p.t, i, true)
+
+write(p::TBinaryProtocol, i::TI32)              = write(p, reinterpret(UInt32,i))
+write(p::TBinaryProtocol, i::UInt32)            = _write_fixed(p.t, i, true)
+
+write(p::TBinaryProtocol, i::TI64)              = write(p, reinterpret(UInt64,i))
+write(p::TBinaryProtocol, i::UInt64)            = _write_fixed(p.t, i, true)
+
 write(p::TBinaryProtocol, d::TDOUBLE)           = _write_fixed(p.t, reinterpret(UInt64,d), true)
-write(p::TBinaryProtocol, a::Array{UInt8,1})    = write(p.t, a)
-write(p::TBinaryProtocol, s::ASCIIString)       = _write(p, s)
-write(p::TBinaryProtocol, s::UTF8String)        = _write(p, s)
-function _write{T<:Union{ASCIIString,UTF8String}}(p::TBinaryProtocol, s::T)
-    sdata = s.data
-    nbyt = writeI32(p, length(sdata))
-    nbyt += write(p, sdata)
-    nbyt
+write(p::TBinaryProtocol, s::ASCIIString)       = write(p, convert(Vector{UInt8}, s), true)
+write(p::TBinaryProtocol, s::UTF8String)        = write(p, convert(Vector{UInt8}, s), true)
+function write(p::TBinaryProtocol, a::Vector{UInt8}, framed::Bool=false)
+    if framed
+        nbyt = writeI32(p, length(a))
+        nbyt += write(p, a)
+        nbyt
+    else
+        write(p.t, a)
+    end
 end
 
 function readMessageBegin(p::TBinaryProtocol)
     @logmsg("readMessageBegin")
-    sz = readI32(p)
-    if sz < 0
-        version = reinterpret(UInt32, sz) & BINARY_VERSION_MASK
+    sz = read(p, UInt32)
+    if sz > BINARY_VERSION_1
+        version = sz & BINARY_VERSION_MASK
         (version != BINARY_VERSION_1) && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "Bad binary protocol version: $version"))
-        typ = Int32(reinterpret(UInt32, sz) & BINARY_TYPE_MASK)
+        typ = Int32(sz & BINARY_TYPE_MASK)
         name = readString(p)
         seqid = readI32(p)
     else
@@ -106,15 +116,16 @@ function readMessageBegin(p::TBinaryProtocol)
         typ = Int32(readByte(p))
         seqid = readI32(p)
     end
-    @logmsg("readMessageBegin read name: $name, mtyp: $typ, seqid: $seqid")
+    @logmsg("readMessageBegin read name: $name, mtyp: $typ, seqid: $seqid, size: $sz")
     (name, typ, seqid)
 end
 
 function readFieldBegin(p::TBinaryProtocol)
     @logmsg("readFieldBegin")
     typ = readByte(p)
-    @logmsg("readFieldBegin, typ: $typ")
-    (nothing, typ, (typ == TType.STOP) ? Int16(0) : readI16(p))
+    fid = (typ == TType.STOP) ? Int16(0) : readI16(p)
+    @logmsg("readFieldBegin, typ: $typ, id: $fid")
+    (nothing, typ, fid)
 end
 readFieldStop(p::TBinaryProtocol) = readByte(p)
 readMapBegin(p::TBinaryProtocol) = (readByte(p), readByte(p), readI32(p))
@@ -123,13 +134,21 @@ readSetBegin(p::TBinaryProtocol) = (readByte(p), readI32(p))
 
 read(p::TBinaryProtocol, ::Type{Bool})          = (0x0 != readByte(p))
 read(p::TBinaryProtocol, ::Type{TBYTE})         = _read_fixed(p.t, UInt8(0), 1, true)
-read(p::TBinaryProtocol, ::Type{TI16})          = reinterpret(TI16, _read_fixed(p.t, UInt16(0), 2, true))
-read(p::TBinaryProtocol, ::Type{TI32})          = reinterpret(TI32, _read_fixed(p.t, UInt32(0), 4, true))
-read(p::TBinaryProtocol, ::Type{TI64})          = reinterpret(TI64, _read_fixed(p.t, UInt64(0), 8, true))
+
+read(p::TBinaryProtocol, ::Type{TI16})          = reinterpret(TI16, read(p, UInt16))
+read(p::TBinaryProtocol, ::Type{UInt16})        = _read_fixed(p.t, UInt16(0), 2, true)
+
+read(p::TBinaryProtocol, ::Type{TI32})          = reinterpret(TI32, read(p, UInt32))
+read(p::TBinaryProtocol, ::Type{UInt32})        = _read_fixed(p.t, UInt32(0), 4, true)
+
+read(p::TBinaryProtocol, ::Type{TI64})          = reinterpret(TI64, read(p, UInt64))
+read(p::TBinaryProtocol, ::Type{UInt64})        = _read_fixed(p.t, UInt64(0), 8, true)
+
 read(p::TBinaryProtocol, ::Type{TDOUBLE})       = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, true))
 read!(p::TBinaryProtocol, a::Array{UInt8,1})    = read!(p.t, a)
-read(p::TBinaryProtocol, ::Type{ASCIIString})   = convert(ASCIIString, read!(p, Array(UInt8, readI32(p))))
-read(p::TBinaryProtocol, ::Type{UTF8String})    = convert(UTF8String, read!(p, Array(UInt8, readI32(p))))
+read(p::TBinaryProtocol, ::Type{ASCIIString})   = convert(ASCIIString, read(p, Vector{UInt8}))
+read(p::TBinaryProtocol, ::Type{UTF8String})    = convert(UTF8String, read(p, Vector{UInt8}))
+read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array(UInt8, readI32(p)))
 
 # ==========================================
 # Binary Protocol End
@@ -157,7 +176,7 @@ end
 const CType = _enum_CType(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C)
 
 const CTYPE_TO_TTYPE = (TType.STOP, TType.BOOL, TType.BOOL, TType.BYTE, TType.I16, TType.I32, TType.I64, TType.DOUBLE, TType.STRING, TType.LIST, TType.SET, TType.MAP, TType.STRUCT)
-const TTYPE_TO_CTYPE = (CType.STOP, 0xff, CType.TRUE, CType.BYTE, CType.DOUBLE, Void, CType.I16, Void, CType.I32, Void, CType.I64, CType.BINARY, CType.STRUCT, CType.MAP, CType.SET, CType.LIST, Void, Void)
+const TTYPE_TO_CTYPE = (CType.STOP, 0xff, CType.TRUE, CType.BYTE, CType.DOUBLE, Void, CType.I16, Void, CType.I32, Void, CType.I64, CType.BINARY, CType.STRUCT, CType.MAP, CType.SET, CType.LIST)
 
 const COMPACT_PROTOCOL_ID       = 0x82
 const COMPACT_VERSION           = 1
@@ -329,13 +348,16 @@ write(p::TCompactProtocol, i::TI16)             = _write_zigzag(p.t, i)
 write(p::TCompactProtocol, i::TI32)             = _write_zigzag(p.t, i)
 write(p::TCompactProtocol, i::TI64)             = _write_zigzag(p.t, i)
 write(p::TCompactProtocol, d::TDOUBLE)          = _write_fixed(p.t, reinterpret(UInt64,d), false)
-write(p::TCompactProtocol, a::Array{UInt8,1})   = write(p.t, a)
-write(p::TCompactProtocol, s::ASCIIString)      = _write(p, s)
-write(p::TCompactProtocol, s::UTF8String)       = _write(p, s)
-function _write{T<:Union{ASCIIString,UTF8String}}(p::TCompactProtocol, s::T)
-    nbyt = writeSize(p, length(s.data))
-    nbyt += write(p, s.data)
-    nbyt
+write(p::TCompactProtocol, s::ASCIIString)       = write(p, convert(Vector{UInt8}, s), true)
+write(p::TCompactProtocol, s::UTF8String)        = write(p, convert(Vector{UInt8}, s), true)
+function write(p::TCompactProtocol, a::Vector{UInt8}, framed::Bool=false)
+    if framed
+        nbyt = writeSize(p, length(a))
+        nbyt += write(p, a)
+        nbyt
+    else
+        write(p.t, a)
+    end
 end
 
 function readMessageBegin(p::TCompactProtocol)
@@ -450,9 +472,9 @@ read(p::TCompactProtocol, t::Type{TI32})        = _read_zigzag(p.t, t)
 read(p::TCompactProtocol, t::Type{TI64})        = _read_zigzag(p.t, t)
 read!(p::TCompactProtocol, t::Type{TDOUBLE})    = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, false))
 read!(p::TCompactProtocol, a::Array{UInt8,1})   = read!(p.t, a)
-read(p::TCompactProtocol, t::Type{ASCIIString}) = convert(ASCIIString, read!(p, Array(UInt8, readSize(p))))
-read(p::TCompactProtocol, t::Type{UTF8String}) = convert(UTF8String, read!(p, Array(UInt8, readSize(p))))
-
+read(p::TCompactProtocol, ::Type{ASCIIString})   = convert(ASCIIString, read(p, Vector{UInt8}))
+read(p::TCompactProtocol, ::Type{UTF8String})    = convert(UTF8String, read(p, Vector{UInt8}))
+read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Array(UInt8, readSize(p)))
 # ==========================================
 # Compact Protocol End
 # ==========================================

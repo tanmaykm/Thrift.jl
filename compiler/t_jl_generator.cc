@@ -154,7 +154,12 @@ string t_jl_generator::julia_type(t_type *type) {
 		t_base_type::t_base tbase = ((t_base_type*) type)->get_base();
 		switch (tbase) {
 		case t_base_type::TYPE_STRING:
-			return "AbstractString";
+			if (((t_base_type*)type)->is_binary()) {
+				return "Vector{UInt8}";
+			}
+			else {
+				return "UTF8String";
+			}
 		case t_base_type::TYPE_BOOL:
 			return "Bool";
 		case t_base_type::TYPE_BYTE:
@@ -173,7 +178,7 @@ string t_jl_generator::julia_type(t_type *type) {
 	}
 	else if(type->is_list()) {
 		t_type *etype = ((t_list*)type)->get_elem_type();
-		return ("Array{" + julia_type(etype) + ", 1}");
+		return ("Vector{" + julia_type(etype) + "}");
 	}
 	else if(type->is_set()) {
 		t_type *etype = ((t_set*)type)->get_elem_type();
@@ -314,7 +319,12 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 		t_base_type::t_base tbase = ((t_base_type*) type)->get_base();
 		switch (tbase) {
 		case t_base_type::TYPE_STRING:
-			out << '"' << get_escaped_string(value) << '"';
+			if (((t_base_type*)type)->is_binary()) {
+				out << "convert(Vector{UInt8}, \"" << get_escaped_string(value) << "\")";
+			}
+			else {
+				out << "utf8(\"" << get_escaped_string(value) << "\")";
+			}
 			break;
 		case t_base_type::TYPE_BOOL:
 			out << (value->get_integer() > 0 ? "true" : "false");
@@ -729,8 +739,8 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		indent(f_service_) << endl;
 
 		indent(f_service_) << "(fname, mtype, rseqid) = readMessageBegin(p)" << endl;
-		indent(f_service_) << "(mtype == MessageType.EXCEPTION) && throw(read(p, TSTRUCT, TApplicationException()))" << endl;
-		indent(f_service_) << "outp = read(p, TSTRUCT, " << fname << "_result())" << endl;
+		indent(f_service_) << "(mtype == MessageType.EXCEPTION) && throw(read(p, TApplicationException()))" << endl;
+		indent(f_service_) << "outp = read(p, " << fname << "_result())" << endl;
 		indent(f_service_) << "readMessageEnd(p)" << endl;
 		indent(f_service_) << "(rseqid != c.seqid) && throw(TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
 
