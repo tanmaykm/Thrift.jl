@@ -1,11 +1,11 @@
 ##
 # The default processor core.
 
-type ThriftHandler
+type ThriftHandler{I,O}
     name::AbstractString
     fn::Function
-    intyp::Type
-    outtyp::Type
+    intyp::Type{I}
+    outtyp::Type{O}
 end
 
 type ThriftProcessor
@@ -44,7 +44,8 @@ end
 
 function _process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol, name::AbstractString, typ::Int32, seqid::Int32)
     handler = p.handlers[name]
-    instruct = read(inp, TSTRUCT, instantiate(handler.intyp))
+    @logmsg("_process: reading instruct of type $(handler.intyp)")
+    instruct = read(inp, handler.intyp)
     readMessageEnd(inp)
     @logmsg("_process: calling handler function")
     if p.use_spawn

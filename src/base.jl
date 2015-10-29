@@ -1,54 +1,50 @@
 ##
 # Base Thrift type system
-type TSTOP end
+immutable TSTOP end
 typealias TVOID     Void
 typealias TBOOL     Bool
 typealias TBYTE     UInt8
-typealias TI08      UInt8
 typealias TDOUBLE   Float64
 typealias TI16      Int16
 typealias TI32      Int32
 typealias TI64      Int64
-typealias TSTRING   ASCIIString
-typealias TUTF7     ASCIIString
+typealias TBINARY   Vector{UInt8}
+typealias TUTF8     UTF8String
+typealias TSTRING   Union{TUTF8, TBINARY}
 typealias TSTRUCT   Any
 typealias TMAP      Dict
 typealias TSET      Set
 typealias TLIST     Array
-typealias TUTF8     UTF8String
-typealias TUTF16    UTF16String
 
 type _enum_TTypes
     STOP::Int32
     VOID::Int32
     BOOL::Int32
     BYTE::Int32
-    I08::Int32
     DOUBLE::Int32
     I16::Int32
     I32::Int32
     I64::Int32
     STRING::Int32
-    UTF7::Int32
     STRUCT::Int32
     MAP::Int32
     SET::Int32
     LIST::Int32
-    UTF8::Int32
-    UTF16::Int32
-    function _enum_TTypes(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17)
-        new(Int32(p1), Int32(p2), Int32(p3), Int32(p4), Int32(p5), Int32(p6), Int32(p7), Int32(p8), Int32(p9), Int32(p10), Int32(p11), Int32(p12), Int32(p13), Int32(p14), Int32(p15), Int32(p16), Int32(p17))
-    end
 end
 
-const TType = _enum_TTypes(0,    1,      2,      3,3,     4,              6,             8,            10,    11,11,     12,      13,    14,     15,      16,    17)
-#                        0       1       2       3        4       5       6     7        8     9       10     11         12       13     14      15       16     17
-const _TTypeNames   = ["STOP", "VOID", "BOOL", "BYTE", "DOUBLE", "",    "I16", "",     "I32", "",     "I64", "STRING", "STRUCT", "MAP", "SET", "LIST", "UTF8", "UTF16"]
-const _TJTypes    =   [TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE, Void, TI16, Void, TI32, Void, TI64,  TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST,  TUTF8,  TUTF16]
+const TType = _enum_TTypes(0,    1,      2,      3,       4,              6,             8,            10,    11,       12,      13,    14,     15)
+#                        0       1       2       3        4       5       6     7        8     9       10     11        12       13     14      15
+const _TTypeNames   = ("STOP", "VOID", "BOOL", "BYTE", "DOUBLE", "",    "I16", "",     "I32", "",     "I64", "STRING", "STRUCT", "MAP", "SET", "LIST")
+const _TJTypes    =   (TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE, Void,   TI16, Void,    TI32, Void,     TI64, TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST)
 
-thrift_type_name(typ::Integer) = _TTypeNames[typ+1]
+#thrift_type_name(typ::Integer) = _TTypeNames[typ+1]
 
 julia_type(typ::Integer) = _TJTypes[typ+1]
+function julia_type(typ::Integer, narrow_typ)
+    wide_typ = julia_type(typ)
+    issubtype(narrow_typ, wide_typ) && (return narrow_typ)
+    error("Can not resolve type. $narrow_typ is not a subtype of $wide_typ")
+end
 
 thrift_type(::Type{TSTOP})          = Int32(0)
 thrift_type(::Type{TVOID})          = Int32(1)
@@ -59,18 +55,22 @@ thrift_type(::Type{TI16})           = Int32(6)
 thrift_type(::Type{TI32})           = Int32(8)
 thrift_type(::Type{TI64})           = Int32(10)
 thrift_type(::Type{TSTRING})        = Int32(11)
+thrift_type(::Type{TUTF8})          = Int32(11)
+thrift_type(::Type{TBINARY})        = Int32(11)
+thrift_type(::Type{AbstractString}) = Int32(11)
 thrift_type{T<:Any}(::Type{T})      = Int32(12)
 thrift_type{T<:Dict}(::Type{T})     = Int32(13)
 thrift_type{T<:Set}(::Type{T})      = Int32(14)
 thrift_type{T<:Array}(::Type{T})    = Int32(15)
-thrift_type(::Type{TUTF8})          = Int32(16)
-thrift_type(::Type{TUTF16})         = Int32(17)
-thrift_type(::Type{AbstractString}) = Int32(11)
 
-const _container_type_ids = [TType.STRUCT, TType.MAP, TType.SET, TType.LIST]
-const _container_types    = [TSTRUCT, TMAP, TSET, TLIST]
-iscontainer(typ::Integer)   = (Int32(typ) in _container_type_ids)
+const _container_type_ids = (TType.STRUCT, TType.MAP, TType.SET, TType.LIST)
+const _container_types    = (TSTRUCT, TMAP, TSET, TLIST)
+const _plain_type_ids = (TType.BOOL, TType.BYTE, TType.DOUBLE, TType.I16, TType.I32, TType.I64, TType.STRING)
+const _plain_types = (TBOOL, TBYTE, TDOUBLE, TI16, TI32, TI64, TBINARY, TUTF8)
+iscontainer(typ::Integer)       = (Int32(typ) in _container_type_ids)
 iscontainer{T}(typ::Type{T})    = iscontainer(thrift_type(typ))
+isplain(typ::Integer)           = (Int32(typ) in _plain_type_ids)
+isplain{T}(typ::Type{T})        = isplain(thrift_type(typ))
 
 ##
 # base processor method
@@ -93,14 +93,12 @@ abstract TProtocol
 
 ##
 # base protocol read and write methods
-instantiate(t::Type) = (t.abstract) ? error("can not instantiate abstract type $t") : ccall(:jl_new_struct_uninit, Any, (Any,Any...), t)
-for _typ in _TJTypes
-    if !iscontainer(_typ)
-        @eval begin
-            write(p::TProtocol, val::$(_typ)) = 0
-            read(p::TProtocol, ::Type{$(_typ)}) = nothing
-            skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
-        end
+#instantiate(t::Type) = (t.abstract) ? error("can not instantiate abstract type $t") : ccall(:jl_new_struct_uninit, Any, (Any,Any...), t)
+for _typ in _plain_types
+    @eval begin
+        write(p::TProtocol, val::$(_typ)) = 0
+        read(p::TProtocol, ::Type{$(_typ)}) = nothing
+        skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
     end
 end
 
@@ -124,6 +122,7 @@ writeI32(p::TProtocol, val)                                                     
 writeI64(p::TProtocol, val)                                                             = write(p, convert(TI64, val))
 writeDouble(p::TProtocol, val)                                                          = write(p, convert(TDOUBLE, val))
 writeString(p::TProtocol, val)                                                          = write(p, bytestring(val))
+writeBinary(p::TProtocol, val)                                                          = write(p, convert(TBINARY, val))
 
 readMessageBegin(p::TProtocol)     = nothing
 readMessageEnd(p::TProtocol)       = nothing
@@ -144,7 +143,7 @@ readI32(p::TProtocol)              = read(p, TI32)
 readI64(p::TProtocol)              = read(p, TI64)
 readDouble(p::TProtocol)           = read(p, TDOUBLE)
 readString(p::TProtocol)           = read(p, UTF8String)
-
+readBinary(p::TProtocol)           = read(p, TBINARY)
 
 function skip{T<:TSTRUCT}(p::TProtocol, ::Type{T})
     @logmsg("skip TSTRUCT")
@@ -159,21 +158,12 @@ function skip{T<:TSTRUCT}(p::TProtocol, ::Type{T})
     return
 end
 
-function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
-    (t == Any) && (val != nothing) && (t = typeof(val))
-    name = readStructBegin(p)
-    (t == Any) && (name != nothing) && (t = eval(symbol(name)))
+read{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = read(p, T())
+function read{T<:TSTRUCT}(p::TProtocol, val::T)
+    @logmsg("read TSTRUCT $T")
+    readStructBegin(p)
 
-    (t == Any) && error("can not read unknown struct type")
-    if val == nothing
-        val = instantiate(t)
-    else
-        !issubtype(typeof(val), t) && error("can not read $t into $(typeof(val))")
-    end
-
-    @logmsg("read TSTRUCT $t")
-
-    m = meta(t)
+    m = meta(T)
     @logmsg("struct meta: $m")
     fillunset(val)
     while true
@@ -181,18 +171,13 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
         (ttyp == TType.STOP) && break
 
         attribs = m.numdict[Int(id)]
-        (ttyp != attribs.ttyp) && !((attribs.ttyp == TType.UTF8) && (ttyp == TType.STRING)) && error("can not read field of type $ttyp into type $(attribs.ttyp)")
-        (nothing != name) && (symbol(name) != attribs.fld) && error("field names do not match. got $(name), have $(attribs.fld)")
-
-        jtyp = julia_type(attribs)
+        jtyp = julia_type(attribs, m)
         fldname = attribs.fld
-        if iscontainer(ttyp)
-            if !isdefined(val, fldname)
-                setfield!(val, fldname, read(p, jtyp))
-            else
-                read(p, jtyp, getfield(val, fldname))
-            end
+        if iscontainer(ttyp) && isdefined(val, fldname)
+            @logmsg("reading a $jtyp into already defined $fldname")
+            read(p, jtyp, getfield(val, fldname))
         else
+            @logmsg("setting a $jtyp into $fldname")
             setfield!(val, fldname, read(p, jtyp))
         end
         fillset(val, fldname)
@@ -203,7 +188,7 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
     # populate defaults
     for attrib in m.ordered
         fldname = attrib.fld
-        if !isfilled(val, fldname) && (length(attrib.default) > 0)
+        if !isfilled(val, fldname) && !isempty(attrib.default)
             default = attrib.default[1]
             setfield!(val, fldname, deepcopy(default))
             fillset(val, fldname)
@@ -213,12 +198,10 @@ function read{T<:TSTRUCT}(p::TProtocol, t::Type{T}, val=nothing)
     val
 end
 
-function write(p::TProtocol, val::TSTRUCT)
-    t = typeof(val)
-    m = meta(t)
-    @logmsg("write TSTRUCT $t")
-    @logmsg("struct meta: $m")
-    writeStructBegin(p, string(t))
+function write{T<:TSTRUCT}(p::TProtocol, val::T)
+    m = meta(T)
+    @logmsg("write TSTRUCT $T with meta $m")
+    writeStructBegin(p, string(T))
 
     for attrib in m.ordered
         if !isfilled(val, attrib.fld)
@@ -226,7 +209,12 @@ function write(p::TProtocol, val::TSTRUCT)
             continue
         end
         writeFieldBegin(p, string(attrib.fld), attrib.ttyp, attrib.fldnum)
-        write(p, getfield(val, attrib.fld))
+        fld = getfield(val, attrib.fld)
+        if (attrib.ttyp == TType.STRING) && isa(fld, Vector{UInt8})
+            write(p, fld, true)
+        else
+            write(p, fld)
+        end
         writeFieldEnd(p)
     end
     writeFieldStop(p)
@@ -235,7 +223,7 @@ function write(p::TProtocol, val::TSTRUCT)
 end
 
 function skip{T<:TMAP}(p::TProtocol, ::Type{T})
-    @logmsg("skip TMAP")
+    @logmsg("skip TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
     jvtype = julia_type(vtype)
@@ -247,19 +235,14 @@ function skip{T<:TMAP}(p::TProtocol, ::Type{T})
     return
 end
 
-function read{T<:TMAP}(p::TProtocol, ::Type{T}, val=nothing)
+read{T<:TMAP}(p::TProtocol, ::Type{T}) = read(p, T())
+function read{T<:TMAP}(p::TProtocol, val::T)
+    @logmsg("read TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
-    jktype = julia_type(ktype)
-    jvtype = julia_type(vtype)
+    (_ktype, _vtype) = eltype(val).types
 
-    @logmsg("read TMAP key: $jktype, val: $jvtype")
-
-    if val == nothing
-        val = Dict{jktype,jvtype}()
-    else
-        (_ktype, _vtype) = eltype(val).types
-        (!issubtype(jktype, _ktype) || !issubtype(jvtype, _vtype)) && error("can not read Dict{$jktype,$jvtype} into $(typeof(val))")
-    end
+    jktype = julia_type(ktype, _ktype)
+    jvtype = julia_type(vtype, _vtype)
 
     for i in 1:size
         k = read(p, jktype)
@@ -271,8 +254,8 @@ function read{T<:TMAP}(p::TProtocol, ::Type{T}, val=nothing)
 end
 
 function write(p::TProtocol, val::TMAP)
+    @logmsg("write TMAP $(typeof(val)), size: $(length(val))")
     (ktype,vtype) = eltype(val).types
-    @logmsg("write TMAP key: $ktype, val: $vtype")
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
         write(p, k)
@@ -282,7 +265,7 @@ function write(p::TProtocol, val::TMAP)
 end
 
 function skip{T<:TSET}(p::TProtocol, ::Type{T})
-    @logmsg("skip TSET")
+    @logmsg("skip TSET $T")
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -291,15 +274,11 @@ function skip{T<:TSET}(p::TProtocol, ::Type{T})
     readSetEnd(p)
 end
 
-function read{T<:TSET}(p::TProtocol, ::Type{T}, val=nothing)
+read{T<:TSET}(p::TProtocol, ::Type{T}) = read(p, T())
+function read{T<:TSET}(p::TProtocol, val::T)
+    @logmsg("read TSET $T")
     (etype, size) = readSetBegin(p)
-    @logmsg("read TSET, etype: $etype, size: $size")
-    jetype = julia_type(etype)
-    if val == nothing
-        val = Set{jetype}()
-    else
-        !issubtype(jetype, eltype(val)) && error("can not read $jetype into $(typeof(val))")
-    end
+    jetype = julia_type(etype, eltype(val))
 
     for i in 1:size
         push!(val, read(p, jetype))
@@ -309,9 +288,9 @@ function read{T<:TSET}(p::TProtocol, ::Type{T}, val=nothing)
 end
 
 function write(p::TProtocol, val::TSET)
+    @logmsg("write TSET $(typeof(val)), size: $(length(val))")
     jetype = eltype(val)
     tetype = thrift_type(jetype)
-    @logmsg("write TSET, etype: $jetype, size: $(length(val))")
     writeSetBegin(p, tetype, length(val))
 
     if iscontainer(tetype)
@@ -327,7 +306,7 @@ function write(p::TProtocol, val::TSET)
 end
 
 function skip{T<:TLIST}(p::TProtocol, ::Type{T})
-    @logmsg("skip TLIST")
+    @logmsg("skip TLIST $T")
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
     for i in 1:size
@@ -336,15 +315,11 @@ function skip{T<:TLIST}(p::TProtocol, ::Type{T})
     readListEnd(p)
 end
 
-function read{T<:TLIST}(p::TProtocol, ::Type{T}, val=nothing)
+read{T<:TLIST}(p::TProtocol, ::Type{T}) = read(p, T())
+function read{T<:TLIST}(p::TProtocol, val::T)
+    @logmsg("read TLIST $T")
     (etype, size) = readListBegin(p)
-    jetype = julia_type(etype)
-    @logmsg("read TLIST, etype: $jetype, size: $size")
-    if val == nothing
-        val = Array(jetype,0)
-    else
-        !issubtype(eltype(val), jetype) && error("can not read $jetype into $(typeof(val))")
-    end
+    jetype = julia_type(etype, eltype(val))
 
     for i in 1:size
         push!(val, read(p, jetype))
@@ -354,7 +329,7 @@ function read{T<:TLIST}(p::TProtocol, ::Type{T}, val=nothing)
 end
 
 function write(p::TProtocol, val::TLIST)
-    @logmsg("write TLIST, etype: $(eltype(val)), size: $(length(val))")
+    @logmsg("write TLIST $(typeof(val)), size: $(length(val))")
     writeListBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
     for v in val
@@ -402,9 +377,12 @@ const _appex_msgs = [
 
 type TApplicationException <: Exception
     typ::Int32
-    message::AbstractString
+    message::UTF8String
 
-    TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::AbstractString="") = new(typ, isempty(message) ? _appex_msgs[typ+1] : message)
+    function TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::AbstractString="")
+        message = utf8(isempty(message) ? _appex_msgs[typ+1] : message)
+        new(typ, message)
+    end
 end
 
 
@@ -456,23 +434,7 @@ function _setmeta(meta::ThriftMeta, jtype::Type, ordered::Array{ThriftMetaAttrib
     meta
 end
 
-function julia_type(fattr::ThriftMetaAttribs)
-    ttyp = fattr.ttyp
-    !iscontainer(ttyp) && (return julia_type(ttyp))
-
-    elmeta = fattr.elmeta
-    if ttyp == TType.STRUCT
-        return elmeta[1].jtype
-    elseif ttyp == TType.LIST
-        return Array{elmeta[1].jtype, 1}
-    elseif ttyp == TType.SET
-        return Set{elmeta[1].jtype}
-    elseif ttyp == TType.MAP
-        return Dict{elmeta[1].jtype, elmeta[2].jtype}
-    end
-    error("unknown type $ttyp in field attributes")
-end
-
+julia_type(fattr::ThriftMetaAttribs, m::ThriftMeta) = fieldtype(m.jtype, fattr.fld)
 
 const _metacache = Dict{Type, ThriftMeta}()
 const _fillcache = Dict{UInt, Array{Symbol,1}}()
@@ -574,7 +536,6 @@ end
 
 ##
 # utility methods
-# utility methods
 function copy!{T}(to::T, from::T)
     fillunset(to)
     for name in fieldnames(totype)
@@ -597,7 +558,7 @@ has_field(obj, fld::Symbol) = isfilled(obj, fld)
 function thriftbuild{T}(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}())
     obj = T()
     for (n,v) in nv
-        fldtyp = fld_type(obj, n)
+        fldtyp = fieldtype(T, n)
         set_field!(obj, n, isa(v, fldtyp) ? v : convert(fldtyp, v))
     end
     obj

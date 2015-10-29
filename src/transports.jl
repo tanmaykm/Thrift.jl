@@ -67,8 +67,10 @@ isopen(t::TFramedTransport) = isopen(t.tp)
 
 readframesz(t::TFramedTransport) = _read_fixed(t.tp, UInt32(0), 4, true)
 function readframe(t::TFramedTransport)
+    @logmsg("TFramedTransport reading frame")
     sz = readframesz(t)
     write(t.rbuff, read!(t.tp, Array(UInt8, sz)))
+    @logmsg("TFramedTransport read frame of $sz bytes")
     nothing
 end
 
