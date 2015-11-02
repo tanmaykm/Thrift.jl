@@ -69,6 +69,7 @@ readframesz(t::TFramedTransport) = _read_fixed(t.tp, UInt32(0), 4, true)
 function readframe(t::TFramedTransport)
     @logmsg("TFramedTransport reading frame")
     sz = readframesz(t)
+    @logmsg("TFramedTransport reading frame of $sz bytes")
     write(t.rbuff, read!(t.tp, Array(UInt8, sz)))
     @logmsg("TFramedTransport read frame of $sz bytes")
     nothing
@@ -82,6 +83,7 @@ function read!(t::TFramedTransport, buff::Array{UInt8,1})
         navlb = nb_available(t.rbuff)
         nremain = ntotal - nread
         if navlb < nremain
+            @logmsg("navlb: $navlb, nremain: $nremain, reading new frame")
             readframe(t)
             navlb = nb_available(t.rbuff)
         end

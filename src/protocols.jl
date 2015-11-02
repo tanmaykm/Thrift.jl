@@ -148,7 +148,7 @@ read(p::TBinaryProtocol, ::Type{TDOUBLE})       = reinterpret(TDOUBLE, _read_fix
 read!(p::TBinaryProtocol, a::Array{UInt8,1})    = read!(p.t, a)
 read(p::TBinaryProtocol, ::Type{ASCIIString})   = convert(ASCIIString, read(p, Vector{UInt8}))
 read(p::TBinaryProtocol, ::Type{UTF8String})    = convert(UTF8String, read(p, Vector{UInt8}))
-read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array(UInt8, readI32(p)))
+read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array(UInt8, _read_fixed(p.t, UInt32(0), 4, true)))
 
 # ==========================================
 # Binary Protocol End
