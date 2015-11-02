@@ -118,5 +118,8 @@ end
 function sasl_callback_default(part::Symbol)
     (part == :authcid) && (return get(ENV, "USER", ""))
     (part == :passwd) && (return "password")
+    (part == :show) && (return get(ENV, "USER", ""))
+    (part == :mechanism) && (return "SASL-Plain")
+
     return "" # for authzid
 end

@@ -145,13 +145,18 @@ readDouble(p::TProtocol)           = read(p, TDOUBLE)
 readString(p::TProtocol)           = read(p, UTF8String)
 readBinary(p::TProtocol)           = read(p, TBINARY)
 
-function skip{T<:TSTRUCT}(p::TProtocol, ::Type{T})
+skip{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = skip_container(p, T)
+function skip_container{T<:TSTRUCT}(p::TProtocol, ::Type{T})
     @logmsg("skip TSTRUCT")
     name = readStructBegin(p)
     while true
         (name, ttype, id) = readFieldBegin(p)
         (ttype == TType.STOP) && break
-        skip(p, julia_type(ttype))
+        if iscontainer(ttyp)
+            skip_container(p, julia_type(ttype))
+        else
+            skip(p, julia_type(ttype))
+        end
         readFieldEnd(p)
     end
     readStructEnd(p)
@@ -159,7 +164,9 @@ function skip{T<:TSTRUCT}(p::TProtocol, ::Type{T})
 end
 
 read{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = read(p, T())
-function read{T<:TSTRUCT}(p::TProtocol, val::T)
+read_container{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = read_container(p, T())
+read{T<:TSTRUCT}(p::TProtocol, val::T) = read_container(p, val)
+function read_container{T<:TSTRUCT}(p::TProtocol, val::T)
     @logmsg("read TSTRUCT $T")
     readStructBegin(p)
 
@@ -173,9 +180,14 @@ function read{T<:TSTRUCT}(p::TProtocol, val::T)
         attribs = m.numdict[Int(id)]
         jtyp = julia_type(attribs, m)
         fldname = attribs.fld
-        if iscontainer(ttyp) && isdefined(val, fldname)
-            @logmsg("reading a $jtyp into already defined $fldname")
-            read(p, jtyp, getfield(val, fldname))
+        if iscontainer(ttyp)
+            if isdefined(val, fldname)
+                @logmsg("reading a $jtyp into already defined container $fldname")
+                read_container(p, jtyp, getfield(val, fldname))
+            else
+                @logmsg("setting a $jtyp into container $fldname")
+                setfield!(val, fldname, read_container(p, jtyp))
+            end
         else
             @logmsg("setting a $jtyp into $fldname")
             setfield!(val, fldname, read(p, jtyp))
@@ -198,7 +210,8 @@ function read{T<:TSTRUCT}(p::TProtocol, val::T)
     val
 end
 
-function write{T<:TSTRUCT}(p::TProtocol, val::T)
+write{T<:TSTRUCT}(p::TProtocol, val::T) = write_container(p, val)
+function write_container{T<:TSTRUCT}(p::TProtocol, val::T)
     m = meta(T)
     @logmsg("write TSTRUCT $T with meta $m")
     writeStructBegin(p, string(T))
@@ -222,7 +235,8 @@ function write{T<:TSTRUCT}(p::TProtocol, val::T)
     nothing
 end
 
-function skip{T<:TMAP}(p::TProtocol, ::Type{T})
+skip{T<:TMAP}(p::TProtocol, ::Type{T}) = skip_container(p, T)
+function skip_container{T<:TMAP}(p::TProtocol, ::Type{T})
     @logmsg("skip TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
     jktype = julia_type(ktype)
@@ -236,7 +250,8 @@ function skip{T<:TMAP}(p::TProtocol, ::Type{T})
 end
 
 read{T<:TMAP}(p::TProtocol, ::Type{T}) = read(p, T())
-function read{T<:TMAP}(p::TProtocol, val::T)
+read{T<:TMAP}(p::TProtocol, val::T) = read_container(p, val)
+function read_container{T<:TMAP}(p::TProtocol, val::T)
     @logmsg("read TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
     (_ktype, _vtype) = eltype(val).types
@@ -253,7 +268,8 @@ function read{T<:TMAP}(p::TProtocol, val::T)
     val
 end
 
-function write(p::TProtocol, val::TMAP)
+write(p::TProtocol, val::TMAP) = write_container(p, val)
+function write_container(p::TProtocol, val::TMAP)
     @logmsg("write TMAP $(typeof(val)), size: $(length(val))")
     (ktype,vtype) = eltype(val).types
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
@@ -264,7 +280,8 @@ function write(p::TProtocol, val::TMAP)
     writeMapEnd(p)
 end
 
-function skip{T<:TSET}(p::TProtocol, ::Type{T})
+skip{T<:TSET}(p::TProtocol, ::Type{T}) = skip_container(p, T)
+function skip_container{T<:TSET}(p::TProtocol, ::Type{T})
     @logmsg("skip TSET $T")
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype)
@@ -275,7 +292,8 @@ function skip{T<:TSET}(p::TProtocol, ::Type{T})
 end
 
 read{T<:TSET}(p::TProtocol, ::Type{T}) = read(p, T())
-function read{T<:TSET}(p::TProtocol, val::T)
+read{T<:TSET}(p::TProtocol, val::T) = read_container(p, val)
+function read_container{T<:TSET}(p::TProtocol, val::T)
     @logmsg("read TSET $T")
     (etype, size) = readSetBegin(p)
     jetype = julia_type(etype, eltype(val))
@@ -287,7 +305,8 @@ function read{T<:TSET}(p::TProtocol, val::T)
     val
 end
 
-function write(p::TProtocol, val::TSET)
+write(p::TProtocol, val::TSET) = write_container(p, val)
+function write_container(p::TProtocol, val::TSET)
     @logmsg("write TSET $(typeof(val)), size: $(length(val))")
     jetype = eltype(val)
     tetype = thrift_type(jetype)
@@ -305,7 +324,8 @@ function write(p::TProtocol, val::TSET)
     writeSetEnd(p)
 end
 
-function skip{T<:TLIST}(p::TProtocol, ::Type{T})
+skip{T<:TLIST}(p::TProtocol, ::Type{T}) = skip_container(p, T)
+function skip_container{T<:TLIST}(p::TProtocol, ::Type{T})
     @logmsg("skip TLIST $T")
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype)
@@ -316,7 +336,8 @@ function skip{T<:TLIST}(p::TProtocol, ::Type{T})
 end
 
 read{T<:TLIST}(p::TProtocol, ::Type{T}) = read(p, T())
-function read{T<:TLIST}(p::TProtocol, val::T)
+read{T<:TLIST}(p::TProtocol, val::T) = read_container(p, val)
+function read_container{T<:TLIST}(p::TProtocol, val::T)
     @logmsg("read TLIST $T")
     (etype, size) = readListBegin(p)
     jetype = julia_type(etype, eltype(val))
@@ -328,7 +349,8 @@ function read{T<:TLIST}(p::TProtocol, val::T)
     val
 end
 
-function write(p::TProtocol, val::TLIST)
+write(p::TProtocol, val::TLIST) = write_container(p, val)
+function write_container(p::TProtocol, val::TLIST)
     @logmsg("write TLIST $(typeof(val)), size: $(length(val))")
     writeListBegin(p, thrift_type(eltype(val)), length(val))
     # TODO: need meta to convert type correctly
