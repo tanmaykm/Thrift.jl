@@ -239,11 +239,13 @@ skip{T<:TMAP}(p::TProtocol, ::Type{T}) = skip_container(p, T)
 function skip_container{T<:TMAP}(p::TProtocol, ::Type{T})
     @logmsg("skip TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
-    jktype = julia_type(ktype)
-    jvtype = julia_type(vtype)
-    for i in 1:size
-        skip(p, jktype)
-        skip(p, jvtype)
+    if size > 0
+        jktype = julia_type(ktype)
+        jvtype = julia_type(vtype)
+        for i in 1:size
+            skip(p, jktype)
+            skip(p, jvtype)
+        end
     end
     readMapEnd(p)
     return
@@ -254,15 +256,16 @@ read{T<:TMAP}(p::TProtocol, val::T) = read_container(p, val)
 function read_container{T<:TMAP}(p::TProtocol, val::T)
     @logmsg("read TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
-    (_ktype, _vtype) = eltype(val).types
-
-    jktype = julia_type(ktype, _ktype)
-    jvtype = julia_type(vtype, _vtype)
-
-    for i in 1:size
-        k = read(p, jktype)
-        v = read(p, jvtype)
-        val[k] = v
+    if size > 0
+        # types are valid only when size is non zero
+        (_ktype, _vtype) = eltype(val).types
+        jktype = julia_type(ktype, _ktype)
+        jvtype = julia_type(vtype, _vtype)
+        for i in 1:size
+            k = read(p, jktype)
+            v = read(p, jvtype)
+            val[k] = v
+        end
     end
     readMapEnd(p)
     val
@@ -284,9 +287,11 @@ skip{T<:TSET}(p::TProtocol, ::Type{T}) = skip_container(p, T)
 function skip_container{T<:TSET}(p::TProtocol, ::Type{T})
     @logmsg("skip TSET $T")
     (etype, size) = readSetBegin(p)
-    jetype = julia_type(etype)
-    for i in 1:size
-        skip(p, jetype)
+    if size > 0
+        jetype = julia_type(etype)
+        for i in 1:size
+            skip(p, jetype)
+        end
     end
     readSetEnd(p)
 end
@@ -296,10 +301,11 @@ read{T<:TSET}(p::TProtocol, val::T) = read_container(p, val)
 function read_container{T<:TSET}(p::TProtocol, val::T)
     @logmsg("read TSET $T")
     (etype, size) = readSetBegin(p)
-    jetype = julia_type(etype, eltype(val))
-
-    for i in 1:size
-        push!(val, read(p, jetype))
+    if size > 0
+        jetype = julia_type(etype, eltype(val))
+        for i in 1:size
+            push!(val, read(p, jetype))
+        end
     end
     readSetEnd(p)
     val
@@ -328,9 +334,11 @@ skip{T<:TLIST}(p::TProtocol, ::Type{T}) = skip_container(p, T)
 function skip_container{T<:TLIST}(p::TProtocol, ::Type{T})
     @logmsg("skip TLIST $T")
     (etype, size) = readListBegin(p)
-    jetype = julia_type(etype)
-    for i in 1:size
-        skip(p, jetype)
+    if size > 0
+        jetype = julia_type(etype)
+        for i in 1:size
+            skip(p, jetype)
+        end
     end
     readListEnd(p)
 end
@@ -340,10 +348,11 @@ read{T<:TLIST}(p::TProtocol, val::T) = read_container(p, val)
 function read_container{T<:TLIST}(p::TProtocol, val::T)
     @logmsg("read TLIST $T")
     (etype, size) = readListBegin(p)
-    jetype = julia_type(etype, eltype(val))
-
-    for i in 1:size
-        push!(val, read(p, jetype))
+    if size > 0
+        jetype = julia_type(etype, eltype(val))
+        for i in 1:size
+            push!(val, read(p, jetype))
+        end
     end
     readListEnd(p)
     val
