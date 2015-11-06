@@ -222,7 +222,7 @@ writeVarint{T <: Integer}(p::TCompactProtocol, i::T) = _write_uleb(p.t, i)
 readVarint{T <: Integer}(p::TCompactProtocol, t::Type{T}) = _read_uleb(p.t, t)
 
 #chkstate(p, s) = !(p.state in s) && (logmsg("chkstate: $(p.state) vs. $s"); error("Internal error. Incorrect state."))
-chkstate(p, s) = !(p.state in s) && error("Internal error. Incorrect state.")
+chkstate(p, s) = !(p.state in s) && error("Internal error. Incorrect state $(p.state). Expected: $s")
 byte2ctype(byte) = (byte & 0x0f)
 byte2ttype(byte) = CTYPE_TO_TTYPE[byte2ctype(byte) + 0x01]
 
@@ -383,6 +383,7 @@ function readMessageEnd(p::TCompactProtocol)
 end
 
 function readStructBegin(p::TCompactProtocol)
+    @logmsg("readStructBegin")
     chkstate(p, CSTATES_READ_STRUCT_BEGIN)
     push!(p.structs, (p.state, p.last_fid))
     p.state = CState.FIELD_READ
@@ -428,6 +429,7 @@ function readFieldEnd(p::TCompactProtocol)
 end
 
 function readCollectionBegin(p::TCompactProtocol)
+    @logmsg("readCollectionBegin")
     chkstate(p, CSTATES_READ_COLLECTION_BEGIN)
     size_type = readByte(p)
     size = size_type >> 4
@@ -442,21 +444,32 @@ readSetBegin(p::TCompactProtocol) = readCollectionBegin(p)
 readListBegin(p::TCompactProtocol) = readCollectionBegin(p)
 
 function readMapBegin(p::TCompactProtocol)
+    @logmsg("readMapBegin")
     chkstate(p, CSTATES_READ_COLLECTION_BEGIN)
     size = readSize(p)
+    @logmsg("size: $size")
     types = (size > 0) ? readByte(p) : 0
+    @logmsg("types: $types")
     vtype = byte2ttype(types)
+    @logmsg("vtype: $vtype")
     ktype = byte2ttype(types >> 4)
+    @logmsg("ktype: $ktype")
+    @logmsg("types >> 4: $(types >> 4)")
     push!(p.containers, p.state)
     p.state = CState.CONTAINER_READ
     (ktype, vtype, size)
 end
 
 function readCollectionEnd(p::TCompactProtocol)
+    @logmsg("readCollectionEnd")
     chkstate(p, CState.CONTAINER_READ)
     p.state = pop!(p.containers)
     nothing
 end
+
+readSetEnd(p::TCompactProtocol) = readCollectionEnd(p)
+readListEnd(p::TCompactProtocol) = readCollectionEnd(p)
+readMapEnd(p::TCompactProtocol) = readCollectionEnd(p)
 
 function read(p::TCompactProtocol, ::Type{Bool})
     chkstate(p, CSTATES_READ_BOOL)
