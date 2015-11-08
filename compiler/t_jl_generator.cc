@@ -540,8 +540,9 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		string fname = chk_keyword(tfunction->get_name());
+		string result_type = tfunction->is_oneway() ? "Void" : (fname + "_result");
 
-		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << fname << "_result))" << endl;
+		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << result_type << "))" << endl;
 	}
 
 	t_service* extends_service = tservice->get_extends();
@@ -561,6 +562,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
+		bool oneway = tfunction->is_oneway();
 
 		if(has_xceptions) {
 			indent(f_service_) << "function _" << fname << "(inp::" << fname << "_args)" << endl;
@@ -588,7 +590,10 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 				f_service_ << "inp." << chk_keyword(fld->get_name());
 			}
 			f_service_ << ")" << endl;
-			if(!ttype->is_void()) {
+			if(oneway) {
+				indent(f_service_) << "return" << endl;
+			}
+			else if(!ttype->is_void()) {
 				indent(f_service_) << "return " << fname << "_result(result)" << endl;
 			}
 			else {
@@ -598,22 +603,27 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			indent(f_service_) << "catch ex" << endl;
 			indent_up();
 
-			indent(f_service_) << "exret = " << fname << "_result()" << endl;
-
-			const vector<t_field*>& xmembers = xceptions->get_members();
-			vector<t_field*>::const_iterator x_iter;
-			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
-				t_field* fld= (*x_iter);
-				indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field!(exret, :" << chk_keyword(fld->get_name()) << ", ex); return exret)" << endl;
+			if(oneway) {
+				indent(f_service_) << "// ignore exceptions in oneway functions" << endl;
 			}
+			else {
+				indent(f_service_) << "exret = " << fname << "_result()" << endl;
 
-			indent(f_service_) << "rethrow()" << endl;
+				const vector<t_field*>& xmembers = xceptions->get_members();
+				vector<t_field*>::const_iterator x_iter;
+				for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
+					t_field* fld= (*x_iter);
+					indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field!(exret, :" << chk_keyword(fld->get_name()) << ", ex); return exret)" << endl;
+				}
+
+				indent(f_service_) << "rethrow()" << endl;
+			}
 			indent_down();
 			indent(f_service_) << "end # try" << endl;
 			indent_down();
 			indent(f_service_) << "end #function _" << fname << endl;
 		}
-		else if(!ttype->is_void()) {
+		else if(!ttype->is_void() && !oneway) {
 			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = " << fname << "_result(" << fname << "(";
 
 			const vector<t_field*>& members = arglist->get_members();
@@ -630,8 +640,30 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			}
 			f_service_ << "))" << endl;
 		}
+		else if(!ttype->is_void() && oneway) {
+			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(";
+
+			const vector<t_field*>& members = arglist->get_members();
+			vector<t_field*>::const_iterator m_iter;
+			bool first = true;
+			for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
+				if (first) {
+					first = false;
+				} else {
+					f_service_ << ", ";
+				}
+				t_field* fld= (*m_iter);
+				f_service_ << "inp." << chk_keyword(fld->get_name());
+			}
+			f_service_ << "); nothing)" << endl;
+		}
 		else {
-			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << fname << "_result())" << endl;
+			if(oneway) {
+				indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << "nothing)" << endl;
+			}
+			else {
+				indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << fname << "_result())" << endl;
+			}
 		}
 	}
 
@@ -704,6 +736,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 	vector<t_function*>::iterator f_iter;
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
+		bool oneway = tfunction->is_oneway();
 		t_type* ttype = tfunction->get_returntype();
 		t_struct* arglist = tfunction->get_arglist();
 		string fname = chk_keyword(tfunction->get_name());
@@ -724,7 +757,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 
 		indent(f_service_) << "p = c.p" << endl;
 		indent(f_service_) << "c.seqid = (c.seqid < (2^31-1)) ? (c.seqid+1) : 0" << endl;
-		indent(f_service_) << "Thrift.writeMessageBegin(p, \"" << fname << "\", Thrift.MessageType.CALL, c.seqid)" << endl;
+		indent(f_service_) << "Thrift.writeMessageBegin(p, \"" << fname << "\", Thrift.MessageType." << (oneway ? "ONEWAY" : "CALL") << ", c.seqid)" << endl;
 		indent(f_service_) << "inp = " << fname << "_args()" << endl;
 
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
@@ -738,19 +771,21 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		indent(f_service_) << "Thrift.flush(p.t)" << endl;
 		indent(f_service_) << endl;
 
-		indent(f_service_) << "(fname, mtype, rseqid) = Thrift.readMessageBegin(p)" << endl;
-		indent(f_service_) << "(mtype == Thrift.MessageType.EXCEPTION) && throw(Thrift.read(p, Thrift.TApplicationException()))" << endl;
-		indent(f_service_) << "outp = Thrift.read(p, " << fname << "_result())" << endl;
-		indent(f_service_) << "Thrift.readMessageEnd(p)" << endl;
-		indent(f_service_) << "(rseqid != c.seqid) && throw(Thrift.TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
+		if(!oneway) {
+			indent(f_service_) << "(fname, mtype, rseqid) = Thrift.readMessageBegin(p)" << endl;
+			indent(f_service_) << "(mtype == Thrift.MessageType.EXCEPTION) && throw(Thrift.read(p, Thrift.TApplicationException()))" << endl;
+			indent(f_service_) << "outp = Thrift.read(p, " << fname << "_result())" << endl;
+			indent(f_service_) << "Thrift.readMessageEnd(p)" << endl;
+			indent(f_service_) << "(rseqid != c.seqid) && throw(Thrift.TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
 
-		if(has_xceptions) {
-			const vector<t_field*>& xmembers = xceptions->get_members();
-			vector<t_field*>::const_iterator x_iter;
-			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
-				t_field* fld= (*x_iter);
-				string fld_name = chk_keyword(fld->get_name());
-				indent(f_service_) << "Thrift.has_field(outp, :" << fld_name << ") && throw(Thrift.get_field(outp, :" << fld_name << "))" << endl;
+			if(has_xceptions) {
+				const vector<t_field*>& xmembers = xceptions->get_members();
+				vector<t_field*>::const_iterator x_iter;
+				for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
+					t_field* fld= (*x_iter);
+					string fld_name = chk_keyword(fld->get_name());
+					indent(f_service_) << "Thrift.has_field(outp, :" << fld_name << ") && throw(Thrift.get_field(outp, :" << fld_name << "))" << endl;
+				}
 			}
 		}
 
@@ -781,6 +816,10 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 		indent(f_service_) << "# types encapsulating arguments and return values of method " << function_name << endl;
 		generate_jl_struct(f_service_, arglist, false);
 		f_service_ << endl;
+
+		if(tfunction->is_oneway()) {
+			continue;
+		}
 
 		indent(f_service_) << "type " << function_name << "_result" << endl;
 		indent_up();
