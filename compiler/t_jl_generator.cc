@@ -724,25 +724,25 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 
 		indent(f_service_) << "p = c.p" << endl;
 		indent(f_service_) << "c.seqid = (c.seqid < (2^31-1)) ? (c.seqid+1) : 0" << endl;
-		indent(f_service_) << "writeMessageBegin(p, \"" << fname << "\", MessageType.CALL, c.seqid)" << endl;
+		indent(f_service_) << "Thrift.writeMessageBegin(p, \"" << fname << "\", Thrift.MessageType.CALL, c.seqid)" << endl;
 		indent(f_service_) << "inp = " << fname << "_args()" << endl;
 
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 			t_field* fld= (*m_iter);
 			string fld_name = chk_keyword(fld->get_name());
-			indent(f_service_) << "set_field!(inp, :" << fld_name << ", " << fld_name << ")" << endl;
+			indent(f_service_) << "Thrift.set_field!(inp, :" << fld_name << ", " << fld_name << ")" << endl;
 		}
 
-		indent(f_service_) << "write(p, inp)" << endl;
-		indent(f_service_) << "writeMessageEnd(p)" << endl;
-		indent(f_service_) << "flush(p.t)" << endl;
+		indent(f_service_) << "Thrift.write(p, inp)" << endl;
+		indent(f_service_) << "Thrift.writeMessageEnd(p)" << endl;
+		indent(f_service_) << "Thrift.flush(p.t)" << endl;
 		indent(f_service_) << endl;
 
-		indent(f_service_) << "(fname, mtype, rseqid) = readMessageBegin(p)" << endl;
-		indent(f_service_) << "(mtype == MessageType.EXCEPTION) && throw(read(p, TApplicationException()))" << endl;
-		indent(f_service_) << "outp = read(p, " << fname << "_result())" << endl;
-		indent(f_service_) << "readMessageEnd(p)" << endl;
-		indent(f_service_) << "(rseqid != c.seqid) && throw(TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
+		indent(f_service_) << "(fname, mtype, rseqid) = Thrift.readMessageBegin(p)" << endl;
+		indent(f_service_) << "(mtype == Thrift.MessageType.EXCEPTION) && throw(Thrift.read(p, Thrift.TApplicationException()))" << endl;
+		indent(f_service_) << "outp = Thrift.read(p, " << fname << "_result())" << endl;
+		indent(f_service_) << "Thrift.readMessageEnd(p)" << endl;
+		indent(f_service_) << "(rseqid != c.seqid) && throw(Thrift.TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
 
 		if(has_xceptions) {
 			const vector<t_field*>& xmembers = xceptions->get_members();
@@ -750,7 +750,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 				t_field* fld= (*x_iter);
 				string fld_name = chk_keyword(fld->get_name());
-				indent(f_service_) << "has_field(outp, :" << fld_name << ") && throw(get_field(outp, :" << fld_name << "))" << endl;
+				indent(f_service_) << "Thrift.has_field(outp, :" << fld_name << ") && throw(Thrift.get_field(outp, :" << fld_name << "))" << endl;
 			}
 		}
 
@@ -758,8 +758,8 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 			indent(f_service_) << "nothing" << endl;
 		}
 		else {
-			indent(f_service_) << "has_field(outp, :success) && (return get_field(outp, :success))" << endl;
-			indent(f_service_) << "throw(TApplicationException(ApplicationExceptionType.MISSING_RESULT, \"retrieve failed: unknown result\"))" << endl;
+			indent(f_service_) << "Thrift.has_field(outp, :success) && (return Thrift.get_field(outp, :success))" << endl;
+			indent(f_service_) << "throw(Thrift.TApplicationException(Thrift.ApplicationExceptionType.MISSING_RESULT, \"retrieve failed: unknown result\"))" << endl;
 		}
 		indent_down();
 		f_service_ << "end # function " << fname << endl << endl;
