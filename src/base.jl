@@ -277,8 +277,18 @@ function write_container(p::TProtocol, val::TMAP)
     (ktype,vtype) = eltype(val).types
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
-        write(p, k)
-        write(p, v)
+        @logmsg("write TMAP key")
+        if is(ktype, Vector{UInt8})
+            write(p, k, true)
+        else
+            write(p, k)
+        end
+        @logmsg("write TMAP value")
+        if is(vtype, Vector{UInt8})
+            write(p, v, true)
+        else
+            write(p, v)
+        end
     end
     writeMapEnd(p)
 end
@@ -324,7 +334,11 @@ function write_container(p::TProtocol, val::TSET)
         end
     else
         for v in val
-            write(p, v)
+            if is(jetype, Vector{UInt8})
+                write(p, v, true)
+            else
+                write(p, v)
+            end
         end
     end
     writeSetEnd(p)
@@ -361,10 +375,15 @@ end
 write(p::TProtocol, val::TLIST) = write_container(p, val)
 function write_container(p::TProtocol, val::TLIST)
     @logmsg("write TLIST $(typeof(val)), size: $(length(val))")
-    writeListBegin(p, thrift_type(eltype(val)), length(val))
+    etype = eltype(val)
+    writeListBegin(p, thrift_type(etype), length(val))
     # TODO: need meta to convert type correctly
     for v in val
-        write(p, v)
+        if is(etype, Vector{UInt8})
+            write(p, v, true)
+        else
+            write(p, v)
+        end
     end
     writeListEnd(p)
     nothing
@@ -416,6 +435,7 @@ type TApplicationException <: Exception
     end
 end
 
+meta(t::Type{TApplicationException}) = meta(t, Symbol[], [2,1], Dict{Symbol,Any}())
 
 
 ##

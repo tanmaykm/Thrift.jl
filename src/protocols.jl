@@ -238,12 +238,14 @@ function writeMessageBegin(p::TCompactProtocol, name::AbstractString, mtype::Int
 end
 
 function writeMessageEnd(p::TCompactProtocol)
+    @logmsg("writeMessageEnd")
     chkstate(p, CState.VALUE_WRITE)
     p.state = CState.CLEAR
     0
 end
 
 function writeStructBegin(p::TCompactProtocol, name::AbstractString)
+    @logmsg("writeStructBegin $name")
     chkstate(p, CSTATES_WRITE_STRUCT_BEGIN)
     push!(p.structs, (p.state, p.last_fid))
     p.state = CState.FIELD_WRITE
@@ -252,6 +254,7 @@ function writeStructBegin(p::TCompactProtocol, name::AbstractString)
 end
 
 function writeStructEnd(p::TCompactProtocol)
+    @logmsg("writeStructEnd")
     chkstate(p, CState.FIELD_WRITE)
     (p.state, p.last_fid) = pop!(p.structs)
     0
@@ -260,10 +263,11 @@ end
 writeFieldStop(p::TCompactProtocol) = writeByte(p, 0x00)
 
 function writeFieldHeader(p::TCompactProtocol, mtype::UInt8, fid::Int16)
+    @logmsg("writeFieldHeader mtype:$mtype, fid:$fid last_fid:$(p.last_fid)")
     nbyt = 0
     delta = fid - p.last_fid
     if 0 < delta <= 15
-      nbyt += writeByte(p, UInt8(delta << 4 | mtype))
+      nbyt += writeByte(p, (UInt8(delta) << 4) | mtype)
     else
       nbyt += writeByte(p, mtype)
       nbyt += writeI16(p, fid)
@@ -273,6 +277,7 @@ function writeFieldHeader(p::TCompactProtocol, mtype::UInt8, fid::Int16)
 end
 
 function writeFieldBegin(p::TCompactProtocol, name::AbstractString, ttype::Int32, fid::Integer)
+    @logmsg("writeFieldBegin $name, ttype:$ttype, fid:$fid")
     nbyt = 0
     chkstate(p, CState.FIELD_WRITE)
     if ttype == TType.BOOL
@@ -286,16 +291,18 @@ function writeFieldBegin(p::TCompactProtocol, name::AbstractString, ttype::Int32
 end
 
 function writeFieldEnd(p::TCompactProtocol)
+    @logmsg("writeFieldEnd")
     chkstate(p, CSTATES_WRITE_FIELD_END)
     p.state = CState.FIELD_WRITE
     0
 end
 
 function writeCollectionsBegin(p::TCompactProtocol, etype::Int32, sz::Int32)
+    @logmsg("writeCollectionsBegin etype:$etype sz:$sz")
     nbyt = 0
     chkstate(p, CSTATES_WRITE_COLLECTION_BEGIN)
     if sz <= 14
-        nbyt += writeByte(p, (sz << 4) | TTYPE_TO_CTYPE[etype+1])
+        nbyt += writeByte(p, (UInt8(sz) << 4) | TTYPE_TO_CTYPE[etype+1])
     else
         nbyt += writeByte(p, 0xf0 | TTYPE_TO_CTYPE[etype+1])
         nbyt += writeSize(p, sz)
@@ -308,6 +315,7 @@ writeSetBegin(p::TCompactProtocol, etype::Int32, size::Integer) = writeCollectio
 writeListBegin(p::TCompactProtocol, etype::Int32, size::Integer) = writeCollectionsBegin(p, etype, Int32(size))
 
 function writeMapBegin(p::TCompactProtocol, ktype::Int32, vtype::Int32, size::Integer)
+    @logmsg("writeMapBegin ktype:$ktype vtype:$vtype size:$size")
     nbyt = 0
     chkstate(p, CSTATES_WRITE_COLLECTION_BEGIN)
     if size == 0
@@ -322,6 +330,7 @@ function writeMapBegin(p::TCompactProtocol, ktype::Int32, vtype::Int32, size::In
 end
 
 function writeCollectionEnd(p::TCompactProtocol)
+    @logmsg("writeCollectionEnd")
     chkstate(p, CState.CONTAINER_WRITE)
     p.state = pop!(p.containers)
     0
@@ -352,10 +361,12 @@ write(p::TCompactProtocol, s::ASCIIString)       = write(p, convert(Vector{UInt8
 write(p::TCompactProtocol, s::UTF8String)        = write(p, convert(Vector{UInt8}, s), true)
 function write(p::TCompactProtocol, a::Vector{UInt8}, framed::Bool=false)
     if framed
+        @logmsg("writing framed binary")
         nbyt = writeSize(p, length(a))
         nbyt += write(p, a)
         nbyt
     else
+        @logmsg("writing unframed binary")
         write(p.t, a)
     end
 end
