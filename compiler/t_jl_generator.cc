@@ -26,7 +26,8 @@ static const std::vector<string> julia_keywords = {
 	"try", "catch", "return", "local", "abstract", "function", "macro",
 	"ccall", "finally", "typealias", "break", "continue", "type",
 	"global", "module", "using", "import", "export", "const", "let",
-	"bitstype", "do", "baremodule", "importall", "immutable"
+	"bitstype", "do", "baremodule", "importall", "immutable",
+	"Type"
 };
 
 
@@ -265,7 +266,7 @@ string t_jl_generator::chk_keyword(const string &value) {
  */
 void t_jl_generator::generate_enum(t_enum* tenum) {
 	vector<t_enum_value*> constants = tenum->get_constants();
-	string enum_name = tenum->get_name();
+	string enum_name = chk_keyword(tenum->get_name());
 
 	f_types_ << indent() << "type " << "_enum_" << enum_name << endl;
 	indent_up();
