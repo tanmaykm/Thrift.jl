@@ -19,7 +19,7 @@ export isinitialized, set_field, set_field!, get_field, clear, has_field, fillun
 
 
 # from transports.jl
-export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase
+export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport
 export TransportExceptionTypes, TTransportException
 
 # from sasl.jl
