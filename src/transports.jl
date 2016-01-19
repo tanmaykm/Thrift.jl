@@ -162,3 +162,21 @@ write(tsock::TSocketBase, buff::Array{UInt8,1}) = write(tsock.io, buff)
 write(tsock::TSocketBase, b::UInt8) = write(tsock, b)
 flush(tsock::TSocketBase)   = flush(tsock.io)
 isopen(tsock::TSocketBase)  = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
+
+# Thrift Memory Transport
+type TMemoryTransport <: TTransport
+    buff::IOBuffer
+
+    TMemoryTransport() = new(PipeBuffer())
+    TMemoryTransport(buff::Array{UInt8}) = new(PipeBuffer(buff))
+end
+
+rawio(t::TMemoryTransport)  = t.buff
+open(t::TMemoryTransport)   = nothing
+close(t::TMemoryTransport)  = nothing
+isopen(t::TMemoryTransport) = true
+flush(t::TMemoryTransport)  = nothing
+read!(t::TMemoryTransport, buff::Array{UInt8,1}) = read!(t.buff, buff)
+read(t::TMemoryTransport, UInt8) = read(t.buff, UInt8)
+write(t::TMemoryTransport, buff::Array{UInt8,1}) = write(t.buff, buff)
+write(t::TMemoryTransport, b::UInt8) = write(t.buff, b)
