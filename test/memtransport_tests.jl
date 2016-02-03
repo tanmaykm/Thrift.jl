@@ -1,3 +1,5 @@
+module MemTransportTests
+
 using Thrift
 using Base.Test
 
@@ -10,7 +12,9 @@ function testmemtransport()
     write(p, s1)
     s2 = read(p, ASCIIString)
     @test s2 == s1
-    println("Memory Transport tests passed.")
+    println("passed.")
 end
 
 testmemtransport()
+
+end

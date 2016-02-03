@@ -61,6 +61,7 @@ The thriftbuild method makes it easier to set large types with many fields:
 - `fillset(obj, fld::Symbol)` : mark field fld of object obj as set
 - `fillunset(obj)` : mark all fields of this object as not set
 - `fillunset(obj, fld::Symbol)` : mark field fld of object obj as not set
+- `enumstr(enumname, enumvalue::Int32)`: returns a string with the enum field name matching the value
 
 
 ### On the Generated Code Structure
