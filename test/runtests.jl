@@ -5,3 +5,4 @@ include("srvr.jl")
 include("clnt.jl")
 
 include("memtransport_tests.jl")
+include("utils_tests.jl")

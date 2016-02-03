@@ -614,3 +614,10 @@ function thriftbuild{T}(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}())
     end
     obj
 end
+
+function enumstr(enumname, t::Int32)
+    for name in fieldnames(enumname)
+        (getfield(enumname, name) == t) && (return string(name))
+    end
+    error("Invalid enum value $t for $(typeof(enumname))")
+end
