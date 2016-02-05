@@ -120,6 +120,7 @@ Socket         | TSocket and TServerSocket    |
 Framed         | TFramedTransport             |
 SASL           | TSASLClientTransport         | Only client side implementation as of now
 Memory         | TMemoryTransport             | Can't be used with servers as of now
+File           | TFileTransport               | Can't be used with servers as of now
 
 Server                      | Implemented as               | &nbsp;
 ---                         | ---                          | ---

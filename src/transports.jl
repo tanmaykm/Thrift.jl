@@ -180,3 +180,18 @@ read!(t::TMemoryTransport, buff::Array{UInt8,1}) = read!(t.buff, buff)
 read(t::TMemoryTransport, UInt8) = read(t.buff, UInt8)
 write(t::TMemoryTransport, buff::Array{UInt8,1}) = write(t.buff, buff)
 write(t::TMemoryTransport, b::UInt8) = write(t.buff, b)
+
+# Thrift File IO Transport
+type TFileTransport <: TTransport
+    handle::IO
+end
+
+rawio(t::TFileTransport)  = t.handle
+open(t::TFileTransport)   = nothing
+close(t::TFileTransport)  = nothing
+isopen(t::TFileTransport) = true
+flush(t::TFileTransport)  = flush(t.handle)
+read!(t::TFileTransport, buff::Array{UInt8,1}) = read!(t.handle, buff)
+read(t::TFileTransport, UInt8) = read(t.handle, UInt8)
+write(t::TFileTransport, buff::Array{UInt8,1}) = write(t.handle, buff)
+write(t::TFileTransport, b::UInt8) = write(t.handle, b)
