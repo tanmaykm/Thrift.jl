@@ -1,6 +1,7 @@
 module FileTransportTests
 
 using Thrift
+using Compat
 using Base.Test
 
 function testfiletransport()
@@ -20,7 +21,7 @@ function testfiletransport()
         t = TFileTransport(f)
         p = TCompactProtocol(t)
         for i in 1:5
-            s2 = read(p, ASCIIString)
+            s2 = read(p, typeof(s1))
             @test s2 == s1
         end
         println("passed.")

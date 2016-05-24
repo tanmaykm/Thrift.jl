@@ -1,6 +1,7 @@
 module MemTransportTests
 
 using Thrift
+using Compat
 using Base.Test
 
 function testmemtransport()
@@ -10,7 +11,7 @@ function testmemtransport()
 
     s1 = "Hello World"
     write(p, s1)
-    s2 = read(p, ASCIIString)
+    s2 = read(p, typeof(s1))
     @test s2 == s1
     println("passed.")
 end

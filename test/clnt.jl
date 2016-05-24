@@ -1,4 +1,5 @@
 using Thrift
+using Compat
 using Base.Test
 
 import Thrift.process, Thrift.meta
@@ -28,7 +29,7 @@ function run_client()
 
     # invoke service and print the result
     println("\nCalling test_hello...")
-    ret = test_hello(clnt, utf8("Julia"))
+    ret = test_hello(clnt, Compat.UTF8String("Julia"))
     println(ret)
     @test endswith(ret, "Julia")
 
