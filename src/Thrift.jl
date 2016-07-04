@@ -2,6 +2,8 @@ VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
 
 module Thrift
 
+using Compat
+
 import Base: TCPSocket, TCPServer
 import Base: open, close, isopen, read, read!, write, flush, skip, listen, accept, show, copy!
 

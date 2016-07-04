@@ -9,7 +9,7 @@ typealias TI16      Int16
 typealias TI32      Int32
 typealias TI64      Int64
 typealias TBINARY   Vector{UInt8}
-typealias TUTF8     UTF8String
+typealias TUTF8     Compat.UTF8String
 typealias TSTRING   Union{TUTF8, TBINARY}
 typealias TSTRUCT   Any
 typealias TMAP      Dict
@@ -101,6 +101,10 @@ for _typ in _plain_types
         skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
     end
 end
+if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
+    read(p::TProtocol, ::Type{Compat.ASCIIString}) = read(p, TUTF8)
+    write(p::TProtocol, val::Compat.ASCIIString) = write(p, convert(TUTF8, val))
+end
 
 writeMessageBegin(p::TProtocol, name::AbstractString, mtype::Int32, seqid::Integer)     = nothing
 writeMessageEnd(p::TProtocol)                                                           = nothing
@@ -121,7 +125,7 @@ writeI16(p::TProtocol, val)                                                     
 writeI32(p::TProtocol, val)                                                             = write(p, convert(TI32, val))
 writeI64(p::TProtocol, val)                                                             = write(p, convert(TI64, val))
 writeDouble(p::TProtocol, val)                                                          = write(p, convert(TDOUBLE, val))
-writeString(p::TProtocol, val)                                                          = write(p, bytestring(val))
+writeString(p::TProtocol, val)                                                          = write(p, Compat.String(val))
 writeBinary(p::TProtocol, val)                                                          = write(p, convert(TBINARY, val))
 
 readMessageBegin(p::TProtocol)     = nothing
@@ -142,7 +146,7 @@ readI16(p::TProtocol)              = read(p, TI16)
 readI32(p::TProtocol)              = read(p, TI32)
 readI64(p::TProtocol)              = read(p, TI64)
 readDouble(p::TProtocol)           = read(p, TDOUBLE)
-readString(p::TProtocol)           = read(p, UTF8String)
+readString(p::TProtocol)           = read(p, TUTF8)
 readBinary(p::TProtocol)           = read(p, TBINARY)
 
 skip{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = skip_container(p, T)
@@ -202,7 +206,7 @@ function read_container{T<:TSTRUCT}(p::TProtocol, val::T)
         fldname = attrib.fld
         if !isfilled(val, fldname) && !isempty(attrib.default)
             default = attrib.default[1]
-            setfield!(val, fldname, deepcopy(default))
+            set_field!(val, fldname, deepcopy(default))
             fillset(val, fldname)
         end
     end
@@ -427,10 +431,10 @@ const _appex_msgs = [
 
 type TApplicationException <: Exception
     typ::Int32
-    message::UTF8String
+    message::TUTF8
 
     function TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::AbstractString="")
-        message = utf8(isempty(message) ? _appex_msgs[typ+1] : message)
+        message = isempty(message) ? _appex_msgs[typ+1] : message
         new(typ, message)
     end
 end
@@ -599,7 +603,12 @@ end
 
 isinitialized(obj) = isfilled(obj)
 
-set_field!(obj, fld::Symbol, val) = (setfield!(obj, fld, val); fillset(obj, fld); nothing)
+function set_field!(obj, fld::Symbol, val)
+    fldtyp = fieldtype(typeof(obj), fld)
+    setfield!(obj, fld, isa(val, fldtyp) ? val : convert(fldtyp, val))
+    fillset(obj, fld)
+    nothing
+end
 @deprecate set_field(obj, fld::Symbol, val) set_field!(obj, fld, val)
 
 get_field(obj, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("uninitialized field $fld")

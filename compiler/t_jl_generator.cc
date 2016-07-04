@@ -159,7 +159,7 @@ string t_jl_generator::julia_type(t_type *type) {
 				return "Vector{UInt8}";
 			}
 			else {
-				return "UTF8String";
+				return "Compat.UTF8String";
 			}
 		case t_base_type::TYPE_BOOL:
 			return "Bool";
@@ -211,7 +211,7 @@ string t_jl_generator::jl_autogen_comment() {
 string t_jl_generator::jl_imports() {
 	std::ostringstream out;
 
-	out << "using Thrift" << endl << "import Thrift.process, Thrift.meta, Thrift.distribute" << endl << endl;
+	out << "using Compat" << endl << "using Thrift" << endl << "import Thrift.process, Thrift.meta, Thrift.distribute" << endl << endl;
 
 	const vector<t_program*>& includes = program_->get_includes();
 	for (size_t i = 0; i < includes.size(); ++i) {
@@ -324,7 +324,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 				out << "convert(Vector{UInt8}, \"" << get_escaped_string(value) << "\")";
 			}
 			else {
-				out << "utf8(\"" << get_escaped_string(value) << "\")";
+				out << "Compat.String(\"" << get_escaped_string(value) << "\")";
 			}
 			break;
 		case t_base_type::TYPE_BOOL:

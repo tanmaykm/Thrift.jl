@@ -30,9 +30,9 @@ type SASLException <: Exception
     SASLException(code=SASL_ERR_UNKNOWN, message::AbstractString="") = new(code, message)
 end
 
-validate_sasl_mech(mech::ASCIIString) = (mech in SASL_MECHANISMS) || throw(SASLException(SASL_ERR_UNSUPPORTED, "Unsupported SASL mechanism \"$mech\""))
+validate_sasl_mech(mech) = (mech in SASL_MECHANISMS) || throw(SASLException(SASL_ERR_UNSUPPORTED, "Unsupported SASL mechanism \"$mech\""))
 
-validate_sasl_status(status::UInt8, message::Vector{UInt8}, okstatus::Tuple) = validate_sasl_status(status, bytestring(message), okstatus)
+validate_sasl_status(status::UInt8, message::Vector{UInt8}, okstatus::Tuple) = validate_sasl_status(status, Compat.String(message), okstatus)
 function validate_sasl_status(status::UInt8, message::AbstractString, okstatus::Tuple)
     (status != SASL_BAD) && (status != SASL_ERROR) && (status in okstatus) && return
 
@@ -108,7 +108,7 @@ function sasl_negotiate_plain(io::IO, callback::Function)
     nothing
 end
 
-function sasl_negotiate(io::IO, mech::ASCIIString, callback::Function)
+function sasl_negotiate(io::IO, mech, callback::Function)
     if mech == SASL_MECH_PLAIN
         return sasl_negotiate_plain(io, callback)
     end
