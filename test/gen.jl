@@ -1,4 +1,4 @@
-testdir = joinpath(Pkg.dir("Thrift"), "test")
+testdir = dirname(@__FILE__)
 
 run(`thrift -gen jl srvcctrl.thrift`)
 run(`thrift -gen jl proto_tests.thrift`)
