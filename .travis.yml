@@ -1,12 +1,18 @@
 language: julia
 os:
-    - osx
     - linux
+sudo: required
+dist: trusty
 julia:
-    - nightly
     - 0.4
+    - 0.5
+    - nightly
+before_install:
+    - sudo apt-get update -qq -y
+    - sudo apt-get install -y libssl-dev flex bison libboost-all-dev
+    - sudo ./test/setup_thrift_compiler.sh
 notifications:
     email: false
 script:
     - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-    - julia -e 'Pkg.clone(pwd()); Pkg.build("Thrift");';
+    - PATH=/thrift/thrift/install/bin:$PATH julia -e 'Pkg.clone(pwd()); Pkg.build("Thrift"); Pkg.test("Thrift")'
