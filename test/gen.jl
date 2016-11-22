@@ -1,4 +1,5 @@
 testdir = dirname(@__FILE__)
+ENV["PATH"] = join([joinpath(dirname(@__FILE__), "deps"), ENV["PATH"]], ":")
 
 run(`thrift -gen jl srvcctrl.thrift`)
 run(`thrift -gen jl proto_tests.thrift`)
