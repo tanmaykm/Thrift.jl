@@ -1,5 +1,5 @@
 testdir = dirname(@__FILE__)
-ENV["PATH"] = join([joinpath(dirname(@__FILE__), "deps", "bin"), ENV["PATH"]], is_windows() ? ";" : ":")
+ENV["PATH"] = join([joinpath(dirname(testdir), "deps", "bin"), ENV["PATH"]], is_windows() ? ";" : ":")
 
 const RUN_ENV = isless(Base.VERSION, v"0.5.0-") ? ["$n=$v" for (n,v) in ENV] : ENV
 
