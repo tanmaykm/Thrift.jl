@@ -1,3 +1,5 @@
+using Compat
+
 include("gen.jl")
 
 ENV["TEST_SRVR_ASYNC"] = "true"
