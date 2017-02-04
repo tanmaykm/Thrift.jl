@@ -2,7 +2,7 @@ const MSB = 0x80
 const MASK7 = 0x7f
 const MASK8 = 0xff
 
-const _wfbuf = (Array(UInt8, 1), Array(UInt8, 2), Array(UInt8, 4), Array(UInt8, 8), Array(UInt8, 16))
+const _wfbuf = (Array{UInt8,1}(1), Array{UInt8,1}(2), Array{UInt8,1}(4), Array{UInt8,1}(8), Array{UInt8,1}(16))
 
 typealias TIO Union{IO, TTransport}
 

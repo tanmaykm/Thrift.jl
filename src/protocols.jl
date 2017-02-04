@@ -146,7 +146,7 @@ read(p::TBinaryProtocol, ::Type{UInt64})        = _read_fixed(p.t, UInt64(0), 8,
 read(p::TBinaryProtocol, ::Type{TDOUBLE})       = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, true))
 read!(p::TBinaryProtocol, a::Array{UInt8,1})    = read!(p.t, a)
 read(p::TBinaryProtocol, ::Type{TUTF8})         = convert(TUTF8, Compat.String(read(p, Vector{UInt8})))
-read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array(UInt8, _read_fixed(p.t, UInt32(0), 4, true)))
+read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array{UInt8,1}(_read_fixed(p.t, UInt32(0), 4, true)))
 
 # ==========================================
 # Binary Protocol End
@@ -494,7 +494,7 @@ read(p::TCompactProtocol, t::Type{TI64})        = _read_zigzag(p.t, t)
 read!(p::TCompactProtocol, t::Type{TDOUBLE})    = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, false))
 read!(p::TCompactProtocol, a::Array{UInt8,1})   = read!(p.t, a)
 read(p::TCompactProtocol, ::Type{TUTF8})        = convert(TUTF8, Compat.String(read(p, Vector{UInt8})))
-read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Array(UInt8, readSize(p)))
+read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Array{UInt8,1}(readSize(p)))
 # ==========================================
 # Compact Protocol End
 # ==========================================
