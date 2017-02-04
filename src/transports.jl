@@ -70,7 +70,7 @@ function readframe(t::TFramedTransport)
     @logmsg("TFramedTransport reading frame")
     sz = readframesz(t)
     @logmsg("TFramedTransport reading frame of $sz bytes")
-    write(t.rbuff, read!(t.tp, Array(UInt8, sz)))
+    write(t.rbuff, read!(t.tp, Array{UInt8,1}(sz)))
     @logmsg("TFramedTransport read frame of $sz bytes")
     nothing
 end

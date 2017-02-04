@@ -282,13 +282,13 @@ function write_container(p::TProtocol, val::TMAP)
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
         @logmsg("write TMAP key")
-        if is(ktype, Vector{UInt8})
+        if ktype === Vector{UInt8}
             write(p, k, true)
         else
             write(p, k)
         end
         @logmsg("write TMAP value")
-        if is(vtype, Vector{UInt8})
+        if vtype === Vector{UInt8}
             write(p, v, true)
         else
             write(p, v)
@@ -338,7 +338,7 @@ function write_container(p::TProtocol, val::TSET)
         end
     else
         for v in val
-            if is(jetype, Vector{UInt8})
+            if jetype === Vector{UInt8}
                 write(p, v, true)
             else
                 write(p, v)
@@ -383,7 +383,7 @@ function write_container(p::TProtocol, val::TLIST)
     writeListBegin(p, thrift_type(etype), length(val))
     # TODO: need meta to convert type correctly
     for v in val
-        if is(etype, Vector{UInt8})
+        if etype === Vector{UInt8}
             write(p, v, true)
         else
             write(p, v)
