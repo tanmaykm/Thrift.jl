@@ -239,7 +239,7 @@ void t_jl_generator::close_generator() {
  * @param ttypedef The type definition
  */
 void t_jl_generator::generate_typedef(t_typedef* ttypedef) {
-	f_types_ << indent() << "typealias " << ttypedef->get_symbolic() << " ";
+	f_types_ << indent() << "const " << ttypedef->get_symbolic() << " = ";
 	t_type *t = ttypedef->get_type();
 	f_types_ << julia_type(t) << endl << endl;
 
@@ -722,7 +722,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		f_types_ << endl << "abstract " << service_name_client << "Base" << endl;
 	}
 	else {
-		f_types_ << endl << "typealias " << service_name_client << "Base " << chk_keyword(extends_service->get_name()) << "ClientBase" << endl;
+		f_types_ << endl << "const " << service_name_client << "Base = " << chk_keyword(extends_service->get_name()) << "ClientBase" << endl;
 	}
 
 	f_service_ << "type " << service_name_client << " <: " << service_name_client << "Base" << endl;

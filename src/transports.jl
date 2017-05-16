@@ -142,7 +142,7 @@ type TServerSocket <: TServerTransport
     TServerSocket(port::Integer) = TServerSocket("", port)
 end
 
-typealias TSocketBase Union{TSocket, TServerSocket}
+const TSocketBase = Union{TSocket, TServerSocket}
 
 open(tsock::TServerSocket) = nothing
 open(tsock::TSocket) = (!isopen(tsock) && (tsock.io = connect(tsock.host, tsock.port)); nothing)

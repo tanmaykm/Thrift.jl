@@ -66,7 +66,7 @@ type TProcessPoolServer <: TServer
     end
 end
 
-typealias TAsyncServer  Union{TTaskServer, TProcessPoolServer}
+const TAsyncServer = Union{TTaskServer, TProcessPoolServer}
 
 function serve(ss::TAsyncServer)
     s = ss.base
