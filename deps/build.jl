@@ -41,7 +41,7 @@ const THRIFT_GIT_SRC = "https://github.com/apache/thrift.git"
 const THRIFT_SRC = joinpath(DEPS_SRC, "thrift-$THRIFT_VERSION")
 const THRIFT_BUILD = [
         Cmd(`./bootstrap.sh`, dir="$THRIFT_SRC", env=BUILD_ENV),
-        Cmd(`./configure --prefix=$DEPS_BIN --without-erlang`, dir="$THRIFT_SRC", env=BUILD_ENV),
+        Cmd(`./configure --prefix=$DEPS_BIN --without-erlang --without-ruby`, dir="$THRIFT_SRC", env=BUILD_ENV),
         Cmd(`make install -j4`, dir="$THRIFT_SRC", env=BUILD_ENV)
     ]
 const THRIFT_MKFILE = joinpath(THRIFT_SRC, "compiler", "cpp", "Makefile.am")
