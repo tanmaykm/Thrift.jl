@@ -4,7 +4,7 @@ const MASK8 = 0xff
 
 const _wfbuf = (Array{UInt8,1}(1), Array{UInt8,1}(2), Array{UInt8,1}(4), Array{UInt8,1}(8), Array{UInt8,1}(16))
 
-typealias TIO Union{IO, TTransport}
+const TIO = Union{IO, TTransport}
 
 function _write_fixed{T <: Unsigned}(io::TIO, ux::T, bigendian::Bool)
     N = sizeof(ux)

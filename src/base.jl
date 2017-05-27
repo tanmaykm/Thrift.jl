@@ -1,20 +1,20 @@
 ##
 # Base Thrift type system
 immutable TSTOP end
-typealias TVOID     Void
-typealias TBOOL     Bool
-typealias TBYTE     UInt8
-typealias TDOUBLE   Float64
-typealias TI16      Int16
-typealias TI32      Int32
-typealias TI64      Int64
-typealias TBINARY   Vector{UInt8}
-typealias TUTF8     Compat.UTF8String
-typealias TSTRING   Union{TUTF8, TBINARY}
-typealias TSTRUCT   Any
-typealias TMAP      Dict
-typealias TSET      Set
-typealias TLIST     Array
+const TVOID     = Void
+const TBOOL     = Bool
+const TBYTE     = UInt8
+const TDOUBLE   = Float64
+const TI16      = Int16
+const TI32      = Int32
+const TI64      = Int64
+const TBINARY   = Vector{UInt8}
+const TUTF8     = Compat.UTF8String
+const TSTRING   = Union{TUTF8, TBINARY}
+const TSTRUCT   = Any
+const TMAP      = Dict
+const TSET      = Set
+const TLIST     = Array
 
 type _enum_TTypes
     STOP::Int32
@@ -74,22 +74,22 @@ isplain{T}(typ::Type{T})        = isplain(thrift_type(typ))
 
 ##
 # base processor method
-abstract TProcessor
+@compat abstract type TProcessor end
 process(tp::TProcessor) = nothing
 
 
 ##
 # base transport types
-abstract TTransport
-abstract TServerTransport <: TTransport
+@compat abstract type TTransport end
+@compat abstract type TServerTransport <: TTransport end
 
 ##
 # base server type
-abstract TServer
+@compat abstract type TServer end
 
 ##
 # base protocol types
-abstract TProtocol
+@compat abstract type TProtocol end
 
 ##
 # base protocol read and write methods
