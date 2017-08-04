@@ -9,7 +9,7 @@ const TI16      = Int16
 const TI32      = Int32
 const TI64      = Int64
 const TBINARY   = Vector{UInt8}
-const TUTF8     = Compat.UTF8String
+const TUTF8     = String
 const TSTRING   = Union{TUTF8, TBINARY}
 const TSTRUCT   = Any
 const TMAP      = Dict
@@ -46,22 +46,22 @@ function julia_type(typ::Integer, narrow_typ)
     error("Can not resolve type. $narrow_typ is not a subtype of $wide_typ")
 end
 
-thrift_type(::Type{TSTOP})          = Int32(0)
-thrift_type(::Type{TVOID})          = Int32(1)
-thrift_type(::Type{TBOOL})          = Int32(2)
-thrift_type(::Type{TBYTE})          = Int32(3)
-thrift_type(::Type{TDOUBLE})        = Int32(4)
-thrift_type(::Type{TI16})           = Int32(6)
-thrift_type(::Type{TI32})           = Int32(8)
-thrift_type(::Type{TI64})           = Int32(10)
-thrift_type(::Type{TSTRING})        = Int32(11)
-thrift_type(::Type{TUTF8})          = Int32(11)
-thrift_type(::Type{TBINARY})        = Int32(11)
-thrift_type(::Type{AbstractString}) = Int32(11)
-thrift_type{T<:Any}(::Type{T})      = Int32(12)
-thrift_type{T<:Dict}(::Type{T})     = Int32(13)
-thrift_type{T<:Set}(::Type{T})      = Int32(14)
-thrift_type{T<:Array}(::Type{T})    = Int32(15)
+thrift_type(::Type{TSTOP})                = Int32(0)
+thrift_type(::Type{TVOID})                = Int32(1)
+thrift_type(::Type{TBOOL})                = Int32(2)
+thrift_type(::Type{TBYTE})                = Int32(3)
+thrift_type(::Type{TDOUBLE})              = Int32(4)
+thrift_type(::Type{TI16})                 = Int32(6)
+thrift_type(::Type{TI32})                 = Int32(8)
+thrift_type(::Type{TI64})                 = Int32(10)
+thrift_type(::Type{TSTRING})              = Int32(11)
+thrift_type(::Type{TUTF8})                = Int32(11)
+thrift_type(::Type{TBINARY})              = Int32(11)
+thrift_type{T<:AbstractString}(::Type{T}) = Int32(11)
+thrift_type{T<:Any}(::Type{T})            = Int32(12)
+thrift_type{T<:Dict}(::Type{T})           = Int32(13)
+thrift_type{T<:Set}(::Type{T})            = Int32(14)
+thrift_type{T<:Array}(::Type{T})          = Int32(15)
 
 const _container_type_ids = (TType.STRUCT, TType.MAP, TType.SET, TType.LIST)
 const _container_types    = (TSTRUCT, TMAP, TSET, TLIST)
@@ -101,10 +101,6 @@ for _typ in _plain_types
         skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
     end
 end
-if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
-    read(p::TProtocol, ::Type{Compat.ASCIIString}) = read(p, TUTF8)
-    write(p::TProtocol, val::Compat.ASCIIString) = write(p, convert(TUTF8, val))
-end
 
 writeMessageBegin(p::TProtocol, name::AbstractString, mtype::Int32, seqid::Integer)     = nothing
 writeMessageEnd(p::TProtocol)                                                           = nothing
@@ -125,7 +121,7 @@ writeI16(p::TProtocol, val)                                                     
 writeI32(p::TProtocol, val)                                                             = write(p, convert(TI32, val))
 writeI64(p::TProtocol, val)                                                             = write(p, convert(TI64, val))
 writeDouble(p::TProtocol, val)                                                          = write(p, convert(TDOUBLE, val))
-writeString(p::TProtocol, val)                                                          = write(p, Compat.String(val))
+writeString(p::TProtocol, val)                                                          = write(p, String(val))
 writeBinary(p::TProtocol, val)                                                          = write(p, convert(TBINARY, val))
 
 readMessageBegin(p::TProtocol)     = nothing

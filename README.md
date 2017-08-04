@@ -89,7 +89,7 @@ import Thrift.meta
 meta(t::Type{MyType}) = meta(t,                          # the type which this is for
         Symbol[:intval],                                 # optional fields
         Int[8, 10],                                      # field numbers
-        Dict{Symbol,Any}({:strval => "default value"}))  # default values
+        Dict{Symbol,Any}(:strval => "default value"))    # default values
 ````
 
 Without any specialized `meta` method:
