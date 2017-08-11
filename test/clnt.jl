@@ -29,7 +29,7 @@ function run_client()
 
     # invoke service and print the result
     println("\nCalling test_hello...")
-    ret = test_hello(clnt, Compat.UTF8String("Julia"))
+    ret = test_hello(clnt, String("Julia"))
     println(ret)
     @test endswith(ret, "Julia")
 
