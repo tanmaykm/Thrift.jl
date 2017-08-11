@@ -2,17 +2,30 @@ using BinDeps
 using Compat
 
 @BinDeps.setup
-bison = library_dependency("bison", aliases = ["bison"])
+
+bison = library_dependency("bison", aliases = ["bison"], os = :Darwin)
+libtool = library_dependency("libtool", os = :Unix)
+flex = library_dependency("flex", os = :Unix)
+byacc = library_dependency("byacc", os = :Unix)
+
 # Wrap in @osx_only to avoid non-OSX users from erroring out
 @static if is_apple()
     using Homebrew
-    provides( Homebrew.HB, "bison", bison, os = :Darwin )
+    provides(Homebrew.HB, "bison", bison, os = :Darwin )
 end
 
+provides(AptGet, Dict(# "bison" => bison,
+                      "libtool" => libtool,
+                      "flex" => flex,
+                      "byacc" => byacc))
+
+
 #Dict(:bison => :jl_bison)
+
 try
     @BinDeps.install
 end
+
 
 # assuming script location is `PkgDir/deps`
 const DEPS_DIR = dirname(@__FILE__)

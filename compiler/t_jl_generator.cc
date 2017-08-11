@@ -159,7 +159,7 @@ string t_jl_generator::julia_type(t_type *type) {
 				return "Vector{UInt8}";
 			}
 			else {
-				return "Compat.UTF8String";
+				return "String";
 			}
 		case t_base_type::TYPE_BOOL:
 			return "Bool";
