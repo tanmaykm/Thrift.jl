@@ -21,8 +21,21 @@ function test_enum()
     @test_throws ErrorException enumstr(TestEnum, Int32(11))
 end
 
+function test_container_check()
+    println("    iscontainer/isplain...")
+    for T in (Bool, UInt8, Float64, Int16, Int32, Int64, Vector{UInt8}, String)
+        @test Thrift.isplain(T)
+        @test !Thrift.iscontainer(T)
+    end
+    for T in (Dict, Set, Any)
+        @test !Thrift.isplain(T)
+        @test Thrift.iscontainer(T)
+    end
+end
+
 println("Testing utils functions...")
 test_enum()
+test_container_check()
 println("passed.")
 
 end

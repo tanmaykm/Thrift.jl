@@ -26,7 +26,7 @@ static const std::vector<string> julia_keywords = {
 	"try", "catch", "return", "local", "abstract", "function", "macro",
 	"ccall", "finally", "typealias", "break", "continue", "type",
 	"global", "module", "using", "import", "export", "const", "let",
-	"bitstype", "do", "baremodule", "importall", "immutable",
+	"bitstype", "do", "baremodule", "importall", "immutable", "struct",
 	"Type"
 };
 
@@ -159,7 +159,7 @@ string t_jl_generator::julia_type(t_type *type) {
 				return "Vector{UInt8}";
 			}
 			else {
-				return "Compat.UTF8String";
+				return "String";
 			}
 		case t_base_type::TYPE_BOOL:
 			return "Bool";
@@ -324,7 +324,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 				out << "convert(Vector{UInt8}, \"" << get_escaped_string(value) << "\")";
 			}
 			else {
-				out << "Compat.String(\"" << get_escaped_string(value) << "\")";
+				out << "\"" << get_escaped_string(value) << "\"";
 			}
 			break;
 		case t_base_type::TYPE_BOOL:
@@ -719,7 +719,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 
 	t_service* extends_service = tservice->get_extends();
 	if (extends_service == NULL) {
-		f_types_ << endl << "abstract " << service_name_client << "Base" << endl;
+		f_types_ << endl << "@compat abstract type " << service_name_client << "Base end" << endl;
 	}
 	else {
 		f_types_ << endl << "const " << service_name_client << "Base = " << chk_keyword(extends_service->get_name()) << "ClientBase" << endl;

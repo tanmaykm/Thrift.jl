@@ -20,12 +20,12 @@ end
 # Thrift SASL client transport
 type TSASLClientTransport <: TTransport
     tp::TTransport
-    mech::Compat.String
+    mech::String
     callback::Function
     rbuff::IOBuffer
     wbuff::IOBuffer
 
-    function TSASLClientTransport(tp::TTransport, mech::Compat.String=SASL_MECH_PLAIN, callback::Function=sasl_callback_default)
+    function TSASLClientTransport(tp::TTransport, mech::String=SASL_MECH_PLAIN, callback::Function=sasl_callback_default)
         validate_sasl_mech(mech)
         new(TFramedTransport(tp), mech, callback, PipeBuffer(), PipeBuffer())
     end

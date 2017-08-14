@@ -32,7 +32,7 @@ end
 
 validate_sasl_mech(mech) = (mech in SASL_MECHANISMS) || throw(SASLException(SASL_ERR_UNSUPPORTED, "Unsupported SASL mechanism \"$mech\""))
 
-validate_sasl_status(status::UInt8, message::Vector{UInt8}, okstatus::Tuple) = validate_sasl_status(status, Compat.String(message), okstatus)
+validate_sasl_status(status::UInt8, message::Vector{UInt8}, okstatus::Tuple) = validate_sasl_status(status, String(message), okstatus)
 function validate_sasl_status(status::UInt8, message::AbstractString, okstatus::Tuple)
     (status != SASL_BAD) && (status != SASL_ERROR) && (status in okstatus) && return
 
