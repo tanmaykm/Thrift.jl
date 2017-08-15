@@ -86,7 +86,9 @@ function build_thrift()
     end
 end
 
-ensure_dirs()
-get_thrift()
-patch_thrift()
-build_thrift()
+if !is_windows()
+    ensure_dirs()
+    get_thrift()
+    patch_thrift()
+    build_thrift()
+end
