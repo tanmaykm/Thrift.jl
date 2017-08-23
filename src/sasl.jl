@@ -62,7 +62,7 @@ function sasl_write(io::IO, status::UInt8, payload::Vector{UInt8}=UInt8[])
     write(iob, status)
     _write_fixed(iob, UInt32(len), true)
     (len > 0) && write(iob, payload)
-    write(io, takebuf_array(iob))
+    write(io, take!(iob))
 end
 
 function sasl_read(io::IO)
@@ -94,7 +94,7 @@ function sasl_negotiate_plain(io::IO, callback::Function)
     nbyt = sasl_write(io, SASL_START, SASL_MECH_PLAIN)
     @logmsg("negotiate_sasl wrote $nbyt bytes")
     # send credentials
-    nbyt = sasl_write(io, SASL_OK, takebuf_array(creds))
+    nbyt = sasl_write(io, SASL_OK, take!(creds))
     @logmsg("negotiate_sasl wrote $nbyt bytes")
 
     (status, len, data) = sasl_read(io)

@@ -57,7 +57,7 @@ end
 
 function _write_zigzag{T <: Integer}(io::TIO, x::T)
     nbits = 8*sizeof(x)
-    zx = (x << 1) $ (x >> (nbits-1))
+    zx = xor((x << 1), (x >> (nbits-1)))
     _write_uleb(io, zx)
 end
 
