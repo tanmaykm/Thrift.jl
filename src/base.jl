@@ -3,7 +3,7 @@
 immutable TSTOP end
 const TVOID     = Void
 const TBOOL     = Bool
-const TBYTE     = UInt8
+const TBYTE     = UInt8     # TBYTE is actually I8 (signed)
 const TDOUBLE   = Float64
 const TI16      = Int16
 const TI32      = Int32

@@ -34,20 +34,19 @@ const PREFIXES = Dict(
 for (n,v) in PREFIXES
     ENV[n] = v
 end
-const BUILD_ENV = isless(Base.VERSION, v"0.5.0-") ? ["$n=$v" for (n,v) in ENV] : ENV
 
-const THRIFT_VERSION="0.9.3"
+const THRIFT_VERSION="0.11.0"
 const THRIFT_GIT_SRC = "https://github.com/apache/thrift.git"
 const THRIFT_SRC = joinpath(DEPS_SRC, "thrift-$THRIFT_VERSION")
 
 const THRIFT_BUILD = [
-        Cmd(`./bootstrap.sh`, dir="$THRIFT_SRC", env=BUILD_ENV),
-        Cmd(`./configure --prefix=$DEPS_BIN --without-erlang --without-ruby --without-qt4 --without-qt5 --without-c_glib --without-csharp --without-java --without-nodejs --without-lua --without-python --without-perl --without-php --without-php_extension --without-haskell --without-go --without-haxe --without-d`, dir="$THRIFT_SRC", env=BUILD_ENV),
-        Cmd(`make install -j4`, dir="$THRIFT_SRC", env=BUILD_ENV)
+        Cmd(`./bootstrap.sh`, dir="$THRIFT_SRC", env=ENV),
+        Cmd(`./configure --prefix=$DEPS_BIN --without-erlang --without-ruby --without-qt4 --without-qt5 --without-c_glib --without-csharp --without-java --without-nodejs --without-lua --without-python --without-perl --without-php --without-php_extension --without-haskell --without-go --without-haxe --without-d`, dir="$THRIFT_SRC", env=ENV),
+        Cmd(`make install -j4`, dir="$THRIFT_SRC", env=ENV)
     ]
 const THRIFT_MKFILE = joinpath(THRIFT_SRC, "compiler", "cpp", "Makefile.am")
 const JL_PLUGIN_SRC = joinpath(PKG_DIR, "compiler", "t_jl_generator.cc")
-const JL_PLUGIN_DEST = joinpath(THRIFT_SRC, "compiler", "cpp", "src", "generate", "t_jl_generator.cc")
+const JL_PLUGIN_DEST = joinpath(THRIFT_SRC, "compiler", "cpp", "src", "thrift", "generate", "t_jl_generator.cc")
 
 function ensure_dirs()
     isdir(DEPS_SRC) || mkdir(DEPS_SRC)
@@ -61,7 +60,7 @@ function patch_thrift()
     makefile = readstring(THRIFT_MKFILE)
     if searchindex(makefile, "t_jl_generator") == 0
         info("Patching thrift makefile")
-        makefile = replace(makefile, "src/generate/t_lua_generator.cc", "src/generate/t_lua_generator.cc src/generate/t_jl_generator.cc")
+        makefile = replace(makefile, "src/thrift/generate/t_rs_generator.cc", "src/thrift/generate/t_rs_generator.cc src/thrift/generate/t_jl_generator.cc")
         open(THRIFT_MKFILE, "w") do f
             write(f, makefile)
         end
