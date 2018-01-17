@@ -39,9 +39,10 @@ const BUILD_ENV = isless(Base.VERSION, v"0.5.0-") ? ["$n=$v" for (n,v) in ENV] :
 const THRIFT_VERSION="0.9.3"
 const THRIFT_GIT_SRC = "https://github.com/apache/thrift.git"
 const THRIFT_SRC = joinpath(DEPS_SRC, "thrift-$THRIFT_VERSION")
+
 const THRIFT_BUILD = [
         Cmd(`./bootstrap.sh`, dir="$THRIFT_SRC", env=BUILD_ENV),
-        Cmd(`./configure --prefix=$DEPS_BIN --without-erlang --without-ruby`, dir="$THRIFT_SRC", env=BUILD_ENV),
+        Cmd(`./configure --prefix=$DEPS_BIN --without-erlang --without-ruby --without-qt4 --without-qt5 --without-c_glib --without-csharp --without-java --without-nodejs --without-lua --without-python --without-perl --without-php --without-php_extension --without-haskell --without-go --without-haxe --without-d`, dir="$THRIFT_SRC", env=BUILD_ENV),
         Cmd(`make install -j4`, dir="$THRIFT_SRC", env=BUILD_ENV)
     ]
 const THRIFT_MKFILE = joinpath(THRIFT_SRC, "compiler", "cpp", "Makefile.am")
