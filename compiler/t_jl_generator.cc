@@ -268,7 +268,7 @@ void t_jl_generator::generate_enum(t_enum* tenum) {
 	vector<t_enum_value*> constants = tenum->get_constants();
 	string enum_name = chk_keyword(tenum->get_name());
 
-	f_types_ << indent() << "type " << "_enum_" << enum_name << endl;
+	f_types_ << indent() << "struct " << "_enum_" << enum_name << endl;
 	indent_up();
 	vector<t_enum_value*>::const_iterator c_iter;
 	for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
@@ -461,11 +461,14 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 	vector<t_field*>::const_iterator m_iter;
 	string struct_name = chk_keyword(tstruct->get_name());
 
-	indent(out) << endl << "type " << struct_name;
+	indent(out) << endl << "mutable struct " << struct_name;
 
 	if (is_exception) {
 		out << " <: Exception";
 	}
+    else {
+		out << " <: Thrift.TMsg";
+    }
 	out << endl;
 	indent_up();
 
@@ -504,7 +507,7 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 		indent(out) << struct_name << "() = (o=new(); fillunset(o); o)" << endl;
 	}
 	indent_down();
-	out << "end # type " << struct_name << endl;
+	out << "end # mutable struct " << struct_name << endl;
 
 	if(need_meta) {
 		string defaults = flddefaults.str().empty() ? "Dict{Symbol,Any}()" : ("Dict{Symbol,Any}(" + flddefaults.str() + ")");
@@ -529,7 +532,7 @@ void t_jl_generator::add_to_module(t_service* tservice) {
 
 void t_jl_generator::generate_service_processor(t_service* tservice) {
 	indent(f_service_) << "# Processor for " << service_name_ << " service (to be used in server implementation)" << endl;
-	f_service_ << "type " << service_name_ << "Processor <: TProcessor" << endl;
+	f_service_ << "mutable struct " << service_name_ << "Processor <: TProcessor" << endl;
 	indent_up();
 	indent(f_service_) << "tp::ThriftProcessor" << endl;
 	indent(f_service_) << "function " << service_name_ << "Processor()" << endl;
@@ -669,7 +672,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	}
 
 	indent_down();
-	f_service_ << "end # type " << service_name_ << "Processor" << endl;
+	f_service_ << "end # mutable struct " << service_name_ << "Processor" << endl;
 	f_service_ << "process(p::" << service_name_ << "Processor, inp::TProtocol, outp::TProtocol) = process(p.tp, inp, outp)" << endl;
 	f_service_ << "distribute(p::" << service_name_ << "Processor) = distribute(p.tp)" << endl;
 }
@@ -719,19 +722,19 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 
 	t_service* extends_service = tservice->get_extends();
 	if (extends_service == NULL) {
-		f_types_ << endl << "@compat abstract type " << service_name_client << "Base end" << endl;
+		f_types_ << endl << "abstract type " << service_name_client << "Base end" << endl;
 	}
 	else {
 		f_types_ << endl << "const " << service_name_client << "Base = " << chk_keyword(extends_service->get_name()) << "ClientBase" << endl;
 	}
 
-	f_service_ << "type " << service_name_client << " <: " << service_name_client << "Base" << endl;
+	f_service_ << "mutable struct " << service_name_client << " <: " << service_name_client << "Base" << endl;
 	indent_up();
 	indent(f_service_) << "p::TProtocol" << endl;
 	indent(f_service_) << "seqid::Int32" << endl;
 	indent(f_service_) << service_name_client << "(p::TProtocol) = new(p, 0)" << endl;
 	indent_down();
-	f_service_ << "end # type " << service_name_client << endl << endl;
+	f_service_ << "end # mutable struct " << service_name_client << endl << endl;
 
 	vector<t_function*> functions = tservice->get_functions();
 	vector<t_function*>::iterator f_iter;
@@ -822,7 +825,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 			continue;
 		}
 
-		indent(f_service_) << "type " << function_name << "_result" << endl;
+		indent(f_service_) << "mutable struct " << function_name << "_result" << endl;
 		indent_up();
 		if(!ttype->is_void()) {
 			indent(f_service_) << "success::" << julia_type(ttype) << endl;
@@ -862,7 +865,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 		}
 
 		indent_down();
-		indent(f_service_) << "end # type " << function_name << "_result" << endl;
+		indent(f_service_) << "end # mutable struct " << function_name << "_result" << endl;
 		indent(f_service_) << "meta(t::Type{" << function_name << "_result}) = meta(t, Symbol[" << result_fld_names.str() << "], Int[" << result_fld_ids.str() << "], Dict{Symbol,Any}())" << endl << endl;
 	}
 }

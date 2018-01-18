@@ -16,6 +16,8 @@ const TMAP      = Dict
 const TSET      = Set
 const TLIST     = Array
 
+abstract type TMsg end
+
 type _enum_TTypes
     STOP::Int32
     VOID::Int32
@@ -587,7 +589,7 @@ end
 
 ##
 # utility methods
-function copy!{T}(to::T, from::T)
+function copy!{T<:TMsg}(to::T, from::T)
     fillunset(to)
     for name in fieldnames(totype)
         if isfilled(from, name)
