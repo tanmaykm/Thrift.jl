@@ -1,5 +1,5 @@
 
-type TServerBase
+mutable struct TServerBase
     srvr_t::TServerTransport
     processor::TProcessor
     in_t::Function
@@ -32,7 +32,7 @@ close(srvr::TServer) = close(srvr.base.srvr_t)
 
 ##
 # Blocking server. Requests are processed in the main task.
-type TSimpleServer <: TServer
+mutable struct TSimpleServer <: TServer
     base::TServerBase
     TSimpleServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) = new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
 end
@@ -51,14 +51,14 @@ end
 
 ##
 # Task server. Tasks are spawned for each connection.
-type TTaskServer <: TServer
+mutable struct TTaskServer <: TServer
     base::TServerBase
     TTaskServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) = new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
 end
 
 ##
 # Process Pool Server
-type TProcessPoolServer <: TServer
+mutable struct TProcessPoolServer <: TServer
     base::TServerBase
     function TProcessPoolServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) 
         distribute(processor)

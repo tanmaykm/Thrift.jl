@@ -3,7 +3,7 @@ module ThriftUtilsTests
 using Thrift
 using Base.Test
 
-type _enum_TestEnum
+struct _enum_TestEnum
     BOOLEAN::Int32
     INT32::Int32
     INT64::Int32

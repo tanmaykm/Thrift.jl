@@ -1,5 +1,5 @@
 
-type _enum_TProtocolExceptionTypes
+struct _enum_TProtocolExceptionTypes
     UNKNOWN::Int32
     INVALID_DATA::Int32
     NEGATIVE_SIZE::Int32
@@ -9,7 +9,7 @@ end
 
 const ProtocolExceptionType = _enum_TProtocolExceptionTypes(Int32(0), Int32(1), Int32(2), Int32(3), Int32(4))
 
-type TProtocolException
+struct TProtocolException
     typ::Int32
     message::TUTF8
 
@@ -24,7 +24,7 @@ const BINARY_VERSION_MASK = 0xffff0000
 const BINARY_VERSION_1 = 0x80010000
 const BINARY_TYPE_MASK = 0x000000ff
 
-type TBinaryProtocol <: TProtocol
+mutable struct TBinaryProtocol <: TProtocol
     t::TTransport
     strict_read::Bool
     strict_write::Bool
@@ -144,9 +144,9 @@ read(p::TBinaryProtocol, ::Type{TI64})          = reinterpret(TI64, read(p, UInt
 read(p::TBinaryProtocol, ::Type{UInt64})        = _read_fixed(p.t, UInt64(0), 8, true)
 
 read(p::TBinaryProtocol, ::Type{TDOUBLE})       = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, true))
-read!(p::TBinaryProtocol, a::Array{UInt8,1})    = read!(p.t, a)
+read!(p::TBinaryProtocol, a::Vector{UInt8})     = read!(p.t, a)
 read(p::TBinaryProtocol, ::Type{TUTF8})         = convert(TUTF8, String(read(p, Vector{UInt8})))
-read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array{UInt8,1}(_read_fixed(p.t, UInt32(0), 4, true)))
+read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(_read_fixed(p.t, UInt32(0), 4, true)))
 
 # ==========================================
 # Binary Protocol End
@@ -156,7 +156,7 @@ read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Array{UInt8,1}(_read_
 # ==========================================
 # Compact Protocol Begin
 # ==========================================
-type _enum_CType
+struct _enum_CType
     STOP::UInt8
     TRUE::UInt8
     FALSE::UInt8
@@ -182,7 +182,7 @@ const COMPACT_VERSION_MASK      = 0x1f
 const COMPACT_TYPE_MASK         = 0xe0
 const COMPACT_TYPE_SHIFT_AMOUNT = 5
 
-type _enum_CState
+struct _enum_CState
     CLEAR::Int32
     FIELD_WRITE::Int32
     VALUE_WRITE::Int32
@@ -204,20 +204,20 @@ const CSTATES_READ_COLLECTION_BEGIN     = (CState.CONTAINER_READ, CState.VALUE_R
 const CSTATES_READ_BOOL                 = (CState.CONTAINER_READ, CState.BOOL_READ)
 
 
-type TCompactProtocol <: TProtocol
+mutable struct TCompactProtocol <: TProtocol
     t::TTransport
     state::Int32
     last_fid::Int16
     bool_fid::Int16
     bool_value::UInt8
-    structs::Array{Tuple,1}
-    containers::Array{Int32,1}
+    structs::Vector{Tuple}
+    containers::Vector{Int32}
 
     TCompactProtocol(t::TTransport) = new(t, CState.CLEAR, 0, 0, 0, Tuple[], Int32[])
 end
 
-writeVarint{T <: Integer}(p::TCompactProtocol, i::T) = _write_uleb(p.t, i)
-readVarint{T <: Integer}(p::TCompactProtocol, t::Type{T}) = _read_uleb(p.t, t)
+writeVarint(p::TCompactProtocol, i::T) where {T <: Integer} = _write_uleb(p.t, i)
+readVarint(p::TCompactProtocol, t::Type{T}) where {T <: Integer} = _read_uleb(p.t, t)
 
 #chkstate(p, s) = !(p.state in s) && (logmsg("chkstate: $(p.state) vs. $s"); error("Internal error. Incorrect state."))
 chkstate(p, s) = !(p.state in s) && error("Internal error. Incorrect state $(p.state). Expected: $s")
@@ -492,9 +492,9 @@ read(p::TCompactProtocol, t::Type{TI16})        = _read_zigzag(p.t, t)
 read(p::TCompactProtocol, t::Type{TI32})        = _read_zigzag(p.t, t)
 read(p::TCompactProtocol, t::Type{TI64})        = _read_zigzag(p.t, t)
 read!(p::TCompactProtocol, t::Type{TDOUBLE})    = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, false))
-read!(p::TCompactProtocol, a::Array{UInt8,1})   = read!(p.t, a)
+read!(p::TCompactProtocol, a::Vector{UInt8})    = read!(p.t, a)
 read(p::TCompactProtocol, ::Type{TUTF8})        = convert(TUTF8, String(read(p, Vector{UInt8})))
-read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Array{UInt8,1}(readSize(p)))
+read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(readSize(p)))
 # ==========================================
 # Compact Protocol End
 # ==========================================

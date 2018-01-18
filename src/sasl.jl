@@ -23,7 +23,7 @@ const SASL_ERR_UNSUPPORTED  = 1
 const SASL_ERR_NEGOTIATION  = 2
 const SASL_ERR_INVALID      = 3
 
-type SASLException <: Exception
+struct SASLException <: Exception
     code::Int
     message::AbstractString
 

@@ -1,6 +1,5 @@
-##
 # Base Thrift type system
-immutable TSTOP end
+struct TSTOP end
 const TVOID     = Void
 const TBOOL     = Bool
 const TBYTE     = UInt8     # TBYTE is actually I8 (signed)
@@ -18,7 +17,7 @@ const TLIST     = Array
 
 abstract type TMsg end
 
-type _enum_TTypes
+struct _enum_TTypes
     STOP::Int32
     VOID::Int32
     BOOL::Int32
@@ -59,39 +58,39 @@ thrift_type(::Type{TI64})                 = Int32(10)
 thrift_type(::Type{TSTRING})              = Int32(11)
 thrift_type(::Type{TUTF8})                = Int32(11)
 thrift_type(::Type{TBINARY})              = Int32(11)
-thrift_type{T<:AbstractString}(::Type{T}) = Int32(11)
-thrift_type{T<:Any}(::Type{T})            = Int32(12)
-thrift_type{T<:Dict}(::Type{T})           = Int32(13)
-thrift_type{T<:Set}(::Type{T})            = Int32(14)
-thrift_type{T<:Array}(::Type{T})          = Int32(15)
+thrift_type(::Type{T}) where {T<:AbstractString} = Int32(11)
+thrift_type(::Type{T}) where {T<:Any}            = Int32(12)
+thrift_type(::Type{T}) where {T<:Dict}           = Int32(13)
+thrift_type(::Type{T}) where {T<:Set}            = Int32(14)
+thrift_type(::Type{T}) where {T<:Array}          = Int32(15)
 
 const _container_type_ids = (TType.STRUCT, TType.MAP, TType.SET, TType.LIST)
 const _container_types    = (TSTRUCT, TMAP, TSET, TLIST)
 const _plain_type_ids = (TType.BOOL, TType.BYTE, TType.DOUBLE, TType.I16, TType.I32, TType.I64, TType.STRING)
 const _plain_types = (TBOOL, TBYTE, TDOUBLE, TI16, TI32, TI64, TBINARY, TUTF8)
 iscontainer(typ::Integer)       = (Int32(typ) in _container_type_ids)
-iscontainer{T}(typ::Type{T})    = iscontainer(thrift_type(typ))
+iscontainer(typ::Type{T}) where {T}    = iscontainer(thrift_type(typ))
 isplain(typ::Integer)           = (Int32(typ) in _plain_type_ids)
-isplain{T}(typ::Type{T})        = isplain(thrift_type(typ))
+isplain(typ::Type{T}) where {T}        = isplain(thrift_type(typ))
 
 ##
 # base processor method
-@compat abstract type TProcessor end
+abstract type TProcessor end
 process(tp::TProcessor) = nothing
 
 
 ##
 # base transport types
-@compat abstract type TTransport end
-@compat abstract type TServerTransport <: TTransport end
+abstract type TTransport end
+abstract type TServerTransport <: TTransport end
 
 ##
 # base server type
-@compat abstract type TServer end
+abstract type TServer end
 
 ##
 # base protocol types
-@compat abstract type TProtocol end
+abstract type TProtocol end
 
 ##
 # base protocol read and write methods
@@ -147,8 +146,8 @@ readDouble(p::TProtocol)           = read(p, TDOUBLE)
 readString(p::TProtocol)           = read(p, TUTF8)
 readBinary(p::TProtocol)           = read(p, TBINARY)
 
-skip{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = skip_container(p, T)
-function skip_container{T<:TSTRUCT}(p::TProtocol, ::Type{T})
+skip(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = skip_container(p, T)
+function skip_container(p::TProtocol, ::Type{T}) where T<:TSTRUCT
     @logmsg("skip TSTRUCT")
     name = readStructBegin(p)
     while true
@@ -165,10 +164,10 @@ function skip_container{T<:TSTRUCT}(p::TProtocol, ::Type{T})
     return
 end
 
-read{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = read(p, T())
-read_container{T<:TSTRUCT}(p::TProtocol, ::Type{T}) = read_container(p, T())
-read{T<:TSTRUCT}(p::TProtocol, val::T) = read_container(p, val)
-function read_container{T<:TSTRUCT}(p::TProtocol, val::T)
+read(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p, T())
+read_container(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = read_container(p, T())
+read(p::TProtocol, val::T) where {T<:TSTRUCT} = read_container(p, val)
+function read_container(p::TProtocol, val::T) where T<:TSTRUCT
     @logmsg("read TSTRUCT $T")
     readStructBegin(p)
 
@@ -212,8 +211,8 @@ function read_container{T<:TSTRUCT}(p::TProtocol, val::T)
     val
 end
 
-write{T<:TSTRUCT}(p::TProtocol, val::T) = write_container(p, val)
-function write_container{T<:TSTRUCT}(p::TProtocol, val::T)
+write(p::TProtocol, val::T) where {T<:TSTRUCT} = write_container(p, val)
+function write_container(p::TProtocol, val::T) where T<:TSTRUCT
     m = meta(T)
     @logmsg("write TSTRUCT $T with meta $m")
     writeStructBegin(p, string(T))
@@ -237,8 +236,8 @@ function write_container{T<:TSTRUCT}(p::TProtocol, val::T)
     nothing
 end
 
-skip{T<:TMAP}(p::TProtocol, ::Type{T}) = skip_container(p, T)
-function skip_container{T<:TMAP}(p::TProtocol, ::Type{T})
+skip(p::TProtocol, ::Type{T}) where {T<:TMAP} = skip_container(p, T)
+function skip_container(p::TProtocol, ::Type{T}) where T<:TMAP
     @logmsg("skip TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
     if size > 0
@@ -253,9 +252,9 @@ function skip_container{T<:TMAP}(p::TProtocol, ::Type{T})
     return
 end
 
-read{T<:TMAP}(p::TProtocol, ::Type{T}) = read(p, T())
-read{T<:TMAP}(p::TProtocol, val::T) = read_container(p, val)
-function read_container{T<:TMAP}(p::TProtocol, val::T)
+read(p::TProtocol, ::Type{T}) where {T<:TMAP} = read(p, T())
+read(p::TProtocol, val::T) where {T<:TMAP} = read_container(p, val)
+function read_container(p::TProtocol, val::T) where T<:TMAP
     @logmsg("read TMAP $T")
     (ktype, vtype, size) = readMapBegin(p)
     if size > 0
@@ -295,8 +294,8 @@ function write_container(p::TProtocol, val::TMAP)
     writeMapEnd(p)
 end
 
-skip{T<:TSET}(p::TProtocol, ::Type{T}) = skip_container(p, T)
-function skip_container{T<:TSET}(p::TProtocol, ::Type{T})
+skip(p::TProtocol, ::Type{T}) where {T<:TSET} = skip_container(p, T)
+function skip_container(p::TProtocol, ::Type{T}) where T<:TSET
     @logmsg("skip TSET $T")
     (etype, size) = readSetBegin(p)
     if size > 0
@@ -308,9 +307,9 @@ function skip_container{T<:TSET}(p::TProtocol, ::Type{T})
     readSetEnd(p)
 end
 
-read{T<:TSET}(p::TProtocol, ::Type{T}) = read(p, T())
-read{T<:TSET}(p::TProtocol, val::T) = read_container(p, val)
-function read_container{T<:TSET}(p::TProtocol, val::T)
+read(p::TProtocol, ::Type{T}) where {T<:TSET} = read(p, T())
+read(p::TProtocol, val::T) where {T<:TSET} = read_container(p, val)
+function read_container(p::TProtocol, val::T) where T<:TSET
     @logmsg("read TSET $T")
     (etype, size) = readSetBegin(p)
     if size > 0
@@ -346,8 +345,8 @@ function write_container(p::TProtocol, val::TSET)
     writeSetEnd(p)
 end
 
-skip{T<:TLIST}(p::TProtocol, ::Type{T}) = skip_container(p, T)
-function skip_container{T<:TLIST}(p::TProtocol, ::Type{T})
+skip(p::TProtocol, ::Type{T}) where {T<:TLIST} = skip_container(p, T)
+function skip_container(p::TProtocol, ::Type{T}) where T<:TLIST
     @logmsg("skip TLIST $T")
     (etype, size) = readListBegin(p)
     if size > 0
@@ -359,9 +358,9 @@ function skip_container{T<:TLIST}(p::TProtocol, ::Type{T})
     readListEnd(p)
 end
 
-read{T<:TLIST}(p::TProtocol, ::Type{T}) = read(p, T())
-read{T<:TLIST}(p::TProtocol, val::T) = read_container(p, val)
-function read_container{T<:TLIST}(p::TProtocol, val::T)
+read(p::TProtocol, ::Type{T}) where {T<:TLIST} = read(p, T())
+read(p::TProtocol, val::T) where {T<:TLIST} = read_container(p, val)
+function read_container(p::TProtocol, val::T) where T<:TLIST
     @logmsg("read TLIST $T")
     (etype, size) = readListBegin(p)
     if size > 0
@@ -394,11 +393,11 @@ end
 
 ##
 # Exception types
-type TException <: Exception
+struct TException <: Exception
     message::AbstractString
 end
 
-type _enum_TApplicationExceptionTypes
+struct _enum_TApplicationExceptionTypes
     UNKNOWN::Int32
     UNKNOWN_METHOD::Int32
     INVALID_MESSAGE_TYPE::Int32
@@ -427,7 +426,7 @@ const _appex_msgs = [
     "Unsupported client type"
 ]
 
-type TApplicationException <: Exception
+struct TApplicationException <: Exception
     typ::Int32
     message::TUTF8
 
@@ -442,7 +441,7 @@ meta(t::Type{TApplicationException}) = meta(t, Symbol[], [2,1], Dict{Symbol,Any}
 
 ##
 # Message types
-type _enum_TMessageType
+struct _enum_TMessageType
     CALL::Int32
     REPLY::Int32
     EXCEPTION::Int32
@@ -456,7 +455,7 @@ const MessageType = _enum_TMessageType(Int32(1), Int32(2), Int32(3), Int32(4))
 ##
 # Thrift Structure Metadata
 
-type ThriftMetaAttribs
+mutable struct ThriftMetaAttribs
     fldnum::Int                     # the field number in the structure
     fld::Symbol
     ttyp::Int32                     # thrift type
@@ -465,16 +464,16 @@ type ThriftMetaAttribs
     elmeta::Array                   # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
 end
 
-type ThriftMeta
+mutable struct ThriftMeta
     jtype::Type
     symdict::Dict{Symbol,ThriftMetaAttribs}
     numdict::Dict{Int,ThriftMetaAttribs}
-    ordered::Array{ThriftMetaAttribs,1}
+    ordered::Vector{ThriftMetaAttribs}
 
-    ThriftMeta(jtype::Type, ordered::Array{ThriftMetaAttribs,1}) = _setmeta(new(), jtype, ordered)
+    ThriftMeta(jtype::Type, ordered::Vector{ThriftMetaAttribs}) = _setmeta(new(), jtype, ordered)
 end
 
-function _setmeta(meta::ThriftMeta, jtype::Type, ordered::Array{ThriftMetaAttribs,1})
+function _setmeta(meta::ThriftMeta, jtype::Type, ordered::Vector{ThriftMetaAttribs})
     symdict = Dict{Symbol,ThriftMetaAttribs}()
     numdict = Dict{Int,ThriftMetaAttribs}()
     for attrib in ordered
@@ -490,7 +489,7 @@ end
 julia_type(fattr::ThriftMetaAttribs, m::ThriftMeta) = fieldtype(m.jtype, fattr.fld)
 
 const _metacache = Dict{Type, ThriftMeta}()
-const _fillcache = Dict{UInt, Array{Symbol,1}}()
+const _fillcache = Dict{UInt, Vector{Symbol}}()
 
 meta(typ::Type) = meta(typ, Symbol[], Int[], Dict{Symbol,Any}())
 function meta(typ::Type, optional::Array, numbers::Array, defaults::Dict, cache::Bool=true)
@@ -498,9 +497,9 @@ function meta(typ::Type, optional::Array, numbers::Array, defaults::Dict, cache:
     for (k,v) in defaults
         d[k] = v
     end
-    meta(typ, convert(Array{Symbol,1}, optional), convert(Array{Int,1}, numbers), d, cache)
+    meta(typ, convert(Vector{Symbol}, optional), convert(Vector{Int}, numbers), d, cache)
 end
-function meta(typ::Type, optional::Array{Symbol,1}, numbers::Array{Int,1}, defaults::Dict{Symbol,Any}, cache::Bool=true)
+function meta(typ::Type, optional::Vector{Symbol}, numbers::Vector{Int}, defaults::Dict{Symbol,Any}, cache::Bool=true)
     haskey(_metacache, typ) && return _metacache[typ]
 
     m = ThriftMeta(typ, ThriftMetaAttribs[])
@@ -589,7 +588,7 @@ end
 
 ##
 # utility methods
-function copy!{T<:TMsg}(to::T, from::T)
+function copy!(to::T, from::T) where T<:TMsg
     fillunset(to)
     for name in fieldnames(totype)
         if isfilled(from, name)
@@ -613,7 +612,7 @@ get_field(obj, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("u
 clear = fillunset
 has_field(obj, fld::Symbol) = isfilled(obj, fld)
 
-function thriftbuild{T}(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}())
+function thriftbuild(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}()) where T
     obj = T()
     for (n,v) in nv
         fldtyp = fieldtype(T, n)

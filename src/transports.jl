@@ -1,4 +1,4 @@
-type _enum_TTransportExceptionTypes
+struct _enum_TTransportExceptionTypes
     UNKNOWN::Int32
     NOT_OPEN::Int32
     ALREADY_OPEN::Int32
@@ -8,7 +8,7 @@ end
 
 const TransportExceptionTypes = _enum_TTransportExceptionTypes(Int32(0), Int32(1), Int32(2), Int32(3), Int32(4))
 
-type TTransportException <: Exception
+struct TTransportException <: Exception
     typ::Int32
     message::AbstractString
 
@@ -18,7 +18,7 @@ end
 
 # TODO: Thrift SASL server transport
 # Thrift SASL client transport
-type TSASLClientTransport <: TTransport
+mutable struct TSASLClientTransport <: TTransport
     tp::TTransport
     mech::String
     callback::Function
@@ -36,9 +36,9 @@ close(t::TSASLClientTransport)  = close(t.tp)
 isopen(t::TSASLClientTransport) = isopen(t.tp)
 flush(t::TSASLClientTransport)  = flush(t.tp)
 
-read!(t::TSASLClientTransport, buff::Array{UInt8,1}) = read!(t.tp, buff)
+read!(t::TSASLClientTransport, buff::Vector{UInt8}) = read!(t.tp, buff)
 read(t::TSASLClientTransport, UInt8) = read(t.tp, UInt8)
-function write(t::TSASLClientTransport, buff::Array{UInt8,1})
+function write(t::TSASLClientTransport, buff::Vector{UInt8})
     @logmsg("TSASLClientTransport buffering $(length(buff)) bytes")
     write(t.tp, buff)
 end
@@ -54,7 +54,7 @@ end
 
 
 # Thrift Framed Transport
-type TFramedTransport <: TTransport
+mutable struct TFramedTransport <: TTransport
     tp::TTransport
     rbuff::IOBuffer
     wbuff::IOBuffer
@@ -70,12 +70,12 @@ function readframe(t::TFramedTransport)
     @logmsg("TFramedTransport reading frame")
     sz = readframesz(t)
     @logmsg("TFramedTransport reading frame of $sz bytes")
-    write(t.rbuff, read!(t.tp, Array{UInt8,1}(sz)))
+    write(t.rbuff, read!(t.tp, Vector{UInt8}(sz)))
     @logmsg("TFramedTransport read frame of $sz bytes")
     nothing
 end
 
-function read!(t::TFramedTransport, buff::Array{UInt8,1})
+function read!(t::TFramedTransport, buff::Vector{UInt8})
     ntotal = length(buff)
     nread = 0
 
@@ -101,7 +101,7 @@ function read(t::TFramedTransport, UInt8)
     return read(t.rbuff, UInt8)
 end
 
-function write(t::TFramedTransport, buff::Array{UInt8,1})
+function write(t::TFramedTransport, buff::Vector{UInt8})
     @logmsg("TFramedTransport buffering $(length(buff)) bytes")
     write(t.wbuff, buff)
 end
@@ -122,7 +122,7 @@ end
 
 
 # Thrift Socket Transport
-type TSocket <: TTransport
+mutable struct TSocket <: TTransport
     host::AbstractString
     port::Integer
 
@@ -132,7 +132,7 @@ type TSocket <: TTransport
     TSocket(port::Integer) = TSocket("127.0.0.1", port)
 end
 
-type TServerSocket <: TServerTransport
+mutable struct TServerSocket <: TServerTransport
     host::AbstractString
     port::Integer
 
@@ -156,15 +156,15 @@ end
 
 close(tsock::TSocketBase) = (isopen(tsock.io) && close(tsock.io); nothing)
 rawio(tsock::TSocketBase) = tsock.io
-read!(tsock::TSocketBase, buff::Array{UInt8,1}) = read!(tsock.io, buff)
+read!(tsock::TSocketBase, buff::Vector{UInt8}) = read!(tsock.io, buff)
 read(tsock::TSocketBase, UInt8) = read(tsock.io, UInt8)
-write(tsock::TSocketBase, buff::Array{UInt8,1}) = write(tsock.io, buff)
-write(tsock::TSocketBase, b::UInt8) = write(tsock, b)
+write(tsock::TSocketBase, buff::Vector{UInt8}) = write(tsock.io, buff)
+write(tsock::TSocketBase, b::UInt8) = write(tsock.io, b)
 flush(tsock::TSocketBase)   = flush(tsock.io)
 isopen(tsock::TSocketBase)  = (isdefined(tsock, :io) && isreadable(tsock.io) && iswritable(tsock.io))
 
 # Thrift Memory Transport
-type TMemoryTransport <: TTransport
+mutable struct TMemoryTransport <: TTransport
     buff::IOBuffer
 
     TMemoryTransport() = new(PipeBuffer())
@@ -176,13 +176,13 @@ open(t::TMemoryTransport)   = nothing
 close(t::TMemoryTransport)  = nothing
 isopen(t::TMemoryTransport) = true
 flush(t::TMemoryTransport)  = nothing
-read!(t::TMemoryTransport, buff::Array{UInt8,1}) = read!(t.buff, buff)
+read!(t::TMemoryTransport, buff::Vector{UInt8}) = read!(t.buff, buff)
 read(t::TMemoryTransport, UInt8) = read(t.buff, UInt8)
-write(t::TMemoryTransport, buff::Array{UInt8,1}) = write(t.buff, buff)
+write(t::TMemoryTransport, buff::Vector{UInt8}) = write(t.buff, buff)
 write(t::TMemoryTransport, b::UInt8) = write(t.buff, b)
 
 # Thrift File IO Transport
-type TFileTransport <: TTransport
+mutable struct TFileTransport <: TTransport
     handle::IO
 end
 
@@ -191,7 +191,7 @@ open(t::TFileTransport)   = nothing
 close(t::TFileTransport)  = nothing
 isopen(t::TFileTransport) = true
 flush(t::TFileTransport)  = flush(t.handle)
-read!(t::TFileTransport, buff::Array{UInt8,1}) = read!(t.handle, buff)
+read!(t::TFileTransport, buff::Vector{UInt8}) = read!(t.handle, buff)
 read(t::TFileTransport, UInt8) = read(t.handle, UInt8)
-write(t::TFileTransport, buff::Array{UInt8,1}) = write(t.handle, buff)
+write(t::TFileTransport, buff::Vector{UInt8}) = write(t.handle, buff)
 write(t::TFileTransport, b::UInt8) = write(t.handle, b)
