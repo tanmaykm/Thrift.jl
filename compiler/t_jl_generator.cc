@@ -8,9 +8,9 @@
 #include <sys/types.h>
 #include <sstream>
 #include <algorithm>
-#include "t_generator.h"
-#include "platform.h"
-#include "version.h"
+#include "thrift/generate/t_oop_generator.h"
+#include "thrift/platform.h"
+#include "thrift/version.h"
 
 using std::map;
 using std::ofstream;
@@ -38,7 +38,7 @@ static const std::vector<string> julia_keywords = {
 class t_jl_generator: public t_generator {
 public:
 	t_jl_generator(t_program* program,
-			const std::map<std::string, std::string>& parsed_options,
+			__attribute__((unused)) const std::map<std::string, std::string>& parsed_options,
 			const std::string& option_string) :
 			t_generator(program) {
 		(void) option_string;
@@ -163,7 +163,7 @@ string t_jl_generator::julia_type(t_type *type) {
 			}
 		case t_base_type::TYPE_BOOL:
 			return "Bool";
-		case t_base_type::TYPE_BYTE:
+		case t_base_type::TYPE_I8:
 			return "UInt8";
 		case t_base_type::TYPE_I16:
 			return "Int16";
@@ -330,7 +330,7 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 		case t_base_type::TYPE_BOOL:
 			out << (value->get_integer() > 0 ? "true" : "false");
 			break;
-		case t_base_type::TYPE_BYTE:
+		case t_base_type::TYPE_I8:
 			if(with_conversion) {
 				out << "UInt8(" << value->get_integer() << ")";
 			}
