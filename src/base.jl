@@ -460,8 +460,8 @@ mutable struct ThriftMetaAttribs
     fld::Symbol
     ttyp::Int32                     # thrift type
     required::Bool                  # required or optional
-    default::Array                  # the default value, empty array if none is specified, first element is used if something is specified
-    elmeta::Array                   # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
+    default::Vector                 # the default value, empty array if none is specified, first element is used if something is specified
+    elmeta::Vector                  # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
 end
 
 mutable struct ThriftMeta
@@ -579,7 +579,7 @@ function isfilled(obj)
     for fld in flds
         if fld.required
             !(fld.fld in fill) && (return false)
-            (fld.meta != nothing) && !isfilled(getfield(obj, fld.fld)) && (return false)
+            (fld.elmeta != nothing) && !isfilled(getfield(obj, fld.fld)) && (return false)
         end
     end
     true
@@ -590,7 +590,7 @@ end
 # utility methods
 function copy!(to::T, from::T) where T<:TMsg
     fillunset(to)
-    for name in fieldnames(totype)
+    for name in fieldnames(T)
         if isfilled(from, name)
             set_field!(to, name, getfield(from, name))
         end

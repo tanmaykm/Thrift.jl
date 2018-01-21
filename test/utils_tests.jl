@@ -33,9 +33,50 @@ function test_container_check()
     end
 end
 
+mutable struct TestMetaAllTypes <: Thrift.TMsg
+  bool_val::Bool
+  byte_val::UInt8
+  i16_val::Int16
+  i32_val::Int32
+  i64_val::Int64
+  double_val::Float64
+  string_val::String
+  TestMetaAllTypes() = (o=new(); fillunset(o); o)
+end # mutable struct AllTypes
+
+function test_meta()
+    @test !Thrift.isplain(TestMetaAllTypes)
+    @test Thrift.iscontainer(TestMetaAllTypes)
+
+    types = TestMetaAllTypes()
+    @test !isfilled(types)
+    @test !isfilled(types, :bool_val)
+
+    set_field!(types, :bool_val, true)
+    @test isfilled(types, :bool_val)
+    @test !isfilled(types)
+
+    set_field!(types, :byte_val,    UInt8(1))
+    set_field!(types, :i16_val,     Int16(1))
+    set_field!(types, :i32_val,     Int32(1))
+    set_field!(types, :i64_val,     Int64(1))
+    set_field!(types, :double_val,  1.1)
+    set_field!(types, :string_val,  "1")
+    @test isfilled(types)
+    @test isinitialized(types)
+
+    types2 = TestMetaAllTypes()
+    @test !isfilled(types2)
+    copy!(types2, types)
+    @test isfilled(types2)
+
+    nothing
+end
+
 println("Testing utils functions...")
 test_enum()
 test_container_check()
+test_meta()
 println("passed.")
 
 end
