@@ -1,14 +1,14 @@
 ##
 # The default processor core.
 
-type ThriftHandler{I,O}
+mutable struct ThriftHandler{I,O}
     name::AbstractString
     fn::Function
     intyp::Type{I}
     outtyp::Type{O}
 end
 
-type ThriftProcessor
+mutable struct ThriftProcessor
     handlers::Dict{AbstractString, ThriftHandler}
     use_spawn::Bool
     extends::ThriftProcessor

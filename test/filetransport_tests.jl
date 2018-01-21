@@ -12,6 +12,13 @@ function testfiletransport()
     open(fname, "w") do f
         t = TFileTransport(f)
         p = TCompactProtocol(t)
+
+        @test open(t) === nothing
+        @test close(t) === nothing
+        @test flush(t) === nothing
+        @test isa(Thrift.rawio(t), IO)
+        @test isopen(t)
+
         for i in 1:5
             write(p, s1)
         end
