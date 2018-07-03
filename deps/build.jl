@@ -12,6 +12,7 @@ end
 #Dict(:bison => :jl_bison)
 try
     @BinDeps.install
+catch
 end
 
 # assuming script location is `PkgDir/deps`
