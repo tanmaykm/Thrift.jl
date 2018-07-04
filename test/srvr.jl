@@ -1,5 +1,6 @@
 using Thrift
-using Base.Test
+using Compat
+using Compat.Test
 
 import Thrift.process, Thrift.meta
 
@@ -9,11 +10,16 @@ global srvr
 # include the generated module, which in-turn includes our implementation code in `proto_tests_impl.jl`
 # prepend with @everywhere when running a TProcessPoolServer on multiple Julia processors
 #@everywhere include("gen-jl/proto_tests/proto_tests.jl")
-isdefined(:srvcctrl) || include("gen-jl/srvcctrl/srvcctrl.jl");
-isdefined(:proto_tests) || include("gen-jl/proto_tests/proto_tests.jl");
-import proto_tests: ProtoTestsProcessor, ProtoTestsClient, InvalidOperation, AllTypes, AllTypesDefault, TestEnum
-import proto_tests: test_hello, test_exception, test_oneway, ping, test_enum, test_types, test_types_default
-import srvcctrl: start_service, stop_service
+if VERSION < v"0.7.0-alpha"
+    isdefined(:srvcctrl) || include("gen-jl/srvcctrl/srvcctrl.jl");
+    isdefined(:proto_tests) || include("gen-jl/proto_tests/proto_tests.jl");
+else
+    @isdefined(srvcctrl) || include("gen-jl/srvcctrl/srvcctrl.jl");
+    @isdefined(proto_tests) || include("gen-jl/proto_tests/proto_tests.jl");
+end
+import .proto_tests: ProtoTestsProcessor, ProtoTestsClient, InvalidOperation, AllTypes, AllTypesDefault, TestEnum
+import .proto_tests: test_hello, test_exception, test_oneway, ping, test_enum, test_types, test_types_default
+import .srvcctrl: start_service, stop_service
 
 transport_factory(x) = x
 protocol_factory(x) = TBinaryProtocol(x)

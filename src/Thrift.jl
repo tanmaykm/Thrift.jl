@@ -3,12 +3,19 @@ __precompile__(true)
 module Thrift
 
 using Compat
+using Compat.Distributed
 
-import Base: TCPSocket, TCPServer
-import Base: open, close, isopen, read, read!, write, flush, skip, listen, accept, show, copy!
+if VERSION < v"0.7.0-DEV.4442"
+    import Base: TCPServer, listen, accept, finalizer
+    finalizer(f::Function, o) = finalizer(o, f)
+else
+    using Compat.Sockets
+    import Compat.Sockets: TCPServer, listen, accept
+end
+
+import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!
 
 export open, close, isopen, read, read!, write, flush, skip, listen, accept, show, copy!
-
 
 # from base.jl
 export TSTOP, TVOID, TBOOL, TBYTE, TI08, TDOUBLE, TI16, TI32, TI64, TSTRING, TUTF7, TSTRUCT, TMAP, TSET, TLIST, TUTF8, TUTF16
@@ -18,7 +25,6 @@ export readMessageBegin, readMessageEnd, readStructBegin, readStructEnd, readFie
 export ApplicationExceptionType, MessageType, TException, TApplicationException
 export ThriftMetaAttribs, ThriftMeta, meta
 export isinitialized, set_field, set_field!, get_field, clear, has_field, fillunset, fillset, filled, isfilled, thriftbuild, enumstr
-
 
 # from transports.jl
 export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport, TFileTransport
@@ -30,10 +36,8 @@ export SASL_MECH_PLAIN, SASL_MECH_KERB, SASL_MECH_LDAP, SASLException
 # from protocols.jl
 export TBinaryProtocol, TCompactProtocol
 
-
 # from processor.jl
 export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
-
 
 # from server.jl
 export TSimpleServer, TTaskServer, TProcessPoolServer, serve

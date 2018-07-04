@@ -89,7 +89,7 @@ write(p::TBinaryProtocol, i::TI64)              = write(p, reinterpret(UInt64,i)
 write(p::TBinaryProtocol, i::UInt64)            = _write_fixed(p.t, i, true)
 
 write(p::TBinaryProtocol, d::TDOUBLE)           = _write_fixed(p.t, reinterpret(UInt64,d), true)
-write(p::TBinaryProtocol, s::TUTF8)             = write(p, convert(Vector{UInt8}, s), true)
+write(p::TBinaryProtocol, s::TUTF8)             = write(p, convert(Vector{UInt8}, codeunits(s)), true)
 function write(p::TBinaryProtocol, a::Vector{UInt8}, framed::Bool=false)
     if framed
         nbyt = writeI32(p, length(a))
@@ -146,7 +146,7 @@ read(p::TBinaryProtocol, ::Type{UInt64})        = _read_fixed(p.t, UInt64(0), 8,
 read(p::TBinaryProtocol, ::Type{TDOUBLE})       = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, true))
 read!(p::TBinaryProtocol, a::Vector{UInt8})     = read!(p.t, a)
 read(p::TBinaryProtocol, ::Type{TUTF8})         = convert(TUTF8, String(read(p, Vector{UInt8})))
-read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(_read_fixed(p.t, UInt32(0), 4, true)))
+read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(undef, _read_fixed(p.t, UInt32(0), 4, true)))
 
 # ==========================================
 # Binary Protocol End
@@ -174,7 +174,7 @@ end
 const CType = _enum_CType(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C)
 
 const CTYPE_TO_TTYPE = (TType.STOP, TType.BOOL, TType.BOOL, TType.BYTE, TType.I16, TType.I32, TType.I64, TType.DOUBLE, TType.STRING, TType.LIST, TType.SET, TType.MAP, TType.STRUCT)
-const TTYPE_TO_CTYPE = (CType.STOP, 0xff, CType.TRUE, CType.BYTE, CType.DOUBLE, Void, CType.I16, Void, CType.I32, Void, CType.I64, CType.BINARY, CType.STRUCT, CType.MAP, CType.SET, CType.LIST)
+const TTYPE_TO_CTYPE = (CType.STOP, 0xff, CType.TRUE, CType.BYTE, CType.DOUBLE, Nothing, CType.I16, Nothing, CType.I32, Nothing, CType.I64, CType.BINARY, CType.STRUCT, CType.MAP, CType.SET, CType.LIST)
 
 const COMPACT_PROTOCOL_ID       = 0x82
 const COMPACT_VERSION           = 1
@@ -355,7 +355,7 @@ write(p::TCompactProtocol, i::TI16)             = _write_zigzag(p.t, i)
 write(p::TCompactProtocol, i::TI32)             = _write_zigzag(p.t, i)
 write(p::TCompactProtocol, i::TI64)             = _write_zigzag(p.t, i)
 write(p::TCompactProtocol, d::TDOUBLE)          = _write_fixed(p.t, reinterpret(UInt64,d), false)
-write(p::TCompactProtocol, s::TUTF8)            = write(p, convert(Vector{UInt8}, s), true)
+write(p::TCompactProtocol, s::TUTF8)            = write(p, convert(Vector{UInt8}, codeunits(s)), true)
 function write(p::TCompactProtocol, a::Vector{UInt8}, framed::Bool=false)
     if framed
         @logmsg("writing framed binary")
@@ -494,7 +494,7 @@ read(p::TCompactProtocol, t::Type{TI64})        = _read_zigzag(p.t, t)
 read!(p::TCompactProtocol, t::Type{TDOUBLE})    = reinterpret(TDOUBLE, _read_fixed(p.t, UInt64(0), 8, false))
 read!(p::TCompactProtocol, a::Vector{UInt8})    = read!(p.t, a)
 read(p::TCompactProtocol, ::Type{TUTF8})        = convert(TUTF8, String(read(p, Vector{UInt8})))
-read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(readSize(p)))
+read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(undef, readSize(p)))
 # ==========================================
 # Compact Protocol End
 # ==========================================
