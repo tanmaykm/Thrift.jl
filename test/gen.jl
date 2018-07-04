@@ -1,10 +1,8 @@
 testdir = dirname(@__FILE__)
-ENV["PATH"] = join([joinpath(dirname(testdir), "deps", "bin"), ENV["PATH"]], is_windows() ? ";" : ":")
+ENV["PATH"] = join([joinpath(dirname(testdir), "deps", "usr", "bin"), ENV["PATH"]], is_windows() ? ";" : ":")
 
-const RUN_ENV = isless(Base.VERSION, v"0.5.0-") ? ["$n=$v" for (n,v) in ENV] : ENV
-
-run(Cmd(`thrift -gen jl srvcctrl.thrift`, env=RUN_ENV))
-run(Cmd(`thrift -gen jl proto_tests.thrift`, env=RUN_ENV))
+run(Cmd(`thrift -gen jl srvcctrl.thrift`, env=ENV))
+run(Cmd(`thrift -gen jl proto_tests.thrift`, env=ENV))
 println("Compiled IDLs...")
 
 cp(joinpath(testdir, "srvcctrl_impl.jl"), joinpath(testdir, "gen-jl", "srvcctrl", "srvcctrl_impl.jl"); remove_destination=true)
