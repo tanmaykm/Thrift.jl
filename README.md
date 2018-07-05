@@ -11,7 +11,12 @@
 
 ### Setting up Thrift for Julia
 
-- Install the Julia Thrift package: `Pkg.add("Thrift")`
+Install the Julia Thrift package: `Pkg.add("Thrift")`.
+
+
+On Linux and OSX a Julia Thrift compiler will be installed under the `deps` folder. You may add it to your `PATH` environment for convenience. On Windows, no pre-built Julia Thrift compiler is installed. Note that the Thrift compiler is only needed to generate Julia code from IDLs. If generated code is already available, Thrift.jl can be used with it even if a compiler is not available.
+
+To build the Julia Thrift compiler (if needed):
 - Patch the Thrift IDL compiler with the Julia code generator plugin. Any one of the following two methods can be followed:
     - Download Thrift sources from [Apache](http://thrift.apache.org/download/). Place Julia plugin [`t_jl_generator.cc`](https://github.com/tanmaykm/Thrift.jl/tree/master/compiler) into `compiler/cpp/src/generate` folder. Update makefiles to include the new source and rebuild.
     - Clone Thrift sources from a fork [here](https://github.com/tanmaykm/thrift).
