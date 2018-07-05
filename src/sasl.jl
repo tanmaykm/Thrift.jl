@@ -55,7 +55,7 @@ end
 
 # SASL messages are of the form:
 # | 1-byte status code | 4-byte payload length | variable-length payload |
-sasl_write(io::IO, status::UInt8, payload::AbstractString) = sasl_write(io, status, convert(Vector{UInt8}, payload))
+sasl_write(io::IO, status::UInt8, payload::AbstractString) = sasl_write(io, status, convert(Vector{UInt8}, codeunits(payload)))
 function sasl_write(io::IO, status::UInt8, payload::Vector{UInt8}=UInt8[])
     len = length(payload)
     iob = IOBuffer()
@@ -84,11 +84,11 @@ function sasl_negotiate_plain(io::IO, callback::Function)
     (max(length(authcid), length(password), length(authzid)) > 255) && throw(SASLException(SASL_ERR_INVALID, "Credentials too large"))
 
     creds = IOBuffer()
-    isempty(authzid) || creds.write(convert(Vector{UInt8}, authzid))
+    isempty(authzid) || creds.write(convert(Vector{UInt8}, codeunits(authzid)))
     write(creds, 0x00)
-    write(creds, convert(Vector{UInt8}, authcid))
+    write(creds, convert(Vector{UInt8}, codeunits(authcid)))
     write(creds, 0x00)
-    write(creds, convert(Vector{UInt8}, password))
+    write(creds, convert(Vector{UInt8}, codeunits(password)))
 
     # start negotiation, indicate protocol
     nbyt = sasl_write(io, SASL_START, SASL_MECH_PLAIN)

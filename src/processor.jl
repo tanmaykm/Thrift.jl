@@ -59,5 +59,5 @@ function _process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol, name::Abs
         _exception(ApplicationExceptionType.MISSING_RESULT, "Invalid return type. Expected $(handler.outtyp). Got $(typeof(outstruct))", outp, name, seqid)
         return
     end
-    isa(outstruct, Void) || _reply(outp, name, seqid, MessageType.REPLY, outstruct)
+    isa(outstruct, Nothing) || _reply(outp, name, seqid, MessageType.REPLY, outstruct)
 end
