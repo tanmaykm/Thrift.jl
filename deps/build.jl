@@ -1,3 +1,4 @@
+using Compat
 using BinaryProvider # requires BinaryProvider 0.3.0 or later
 
 # Parse some basic command-line arguments
@@ -25,20 +26,24 @@ download_info = Dict(
     FreeBSD(:x86_64) => ("$bin_prefix/JuliaThriftBuilder.v1.0.0.x86_64-unknown-freebsd11.1.tar.gz", "7ba167279dd3eed5fde8584fe88ed379e0499eaaf67a88b596783b0a8f11d9d6"),
 )
 
-# Install unsatisfied or updated dependencies:
-unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
-if haskey(download_info, platform_key())
-    url, tarball_hash = download_info[platform_key()]
-    if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix)
-        # Download and install binaries
-        install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
+if Compat.Sys.iswindows()
+    info("No pre-built Julia Thrift compiler found for your platform $(triplet(platform_key())). Not required unless you want to compile new Thrift IDLs. Follow package instructions to build on your own if needed.")
+else
+    # Install unsatisfied or updated dependencies:
+    unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
+    if haskey(download_info, platform_key())
+        url, tarball_hash = download_info[platform_key()]
+        if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix)
+            # Download and install binaries
+            install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
+        end
+    elseif unsatisfied
+        # If we don't have a BinaryProvider-compatible .tar.gz to download, complain.
+        # Alternatively, you could attempt to install from a separate provider,
+        # build from source or something even more ambitious here.
+        error("Your platform $(triplet(platform_key())) is not supported by this package!")
     end
-elseif unsatisfied
-    # If we don't have a BinaryProvider-compatible .tar.gz to download, complain.
-    # Alternatively, you could attempt to install from a separate provider,
-    # build from source or something even more ambitious here.
-    error("Your platform $(triplet(platform_key())) is not supported by this package!")
-end
 
-# Write out a deps.jl file that will contain mappings for our products
-write_deps_file(joinpath(@__DIR__, "deps.jl"), products)
+    # Write out a deps.jl file that will contain mappings for our products
+    write_deps_file(joinpath(@__DIR__, "deps.jl"), products)
+end
