@@ -70,7 +70,7 @@ function sasl_read(io::IO)
     @logmsg("read_sasl read status $status")
     len = _read_fixed(io, UInt32(0), 4, true)
     @logmsg("read_sasl read len $len")
-    data = read(io, UInt8, len)
+    data = read!(io, Vector{UInt8}(undef, len))
     @logmsg("read_sasl read data $data")
     (status, len, data)
 end

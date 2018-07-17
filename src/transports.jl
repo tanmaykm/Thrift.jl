@@ -80,12 +80,12 @@ function read!(t::TFramedTransport, buff::Vector{UInt8})
     nread = 0
 
     while nread < ntotal
-        navlb = nb_available(t.rbuff)
+        navlb = bytesavailable(t.rbuff)
         nremain = ntotal - nread
         if navlb < nremain
             @logmsg("navlb: $navlb, nremain: $nremain, reading new frame")
             readframe(t)
-            navlb = nb_available(t.rbuff)
+            navlb = bytesavailable(t.rbuff)
         end
         nbuff = min(navlb, nremain)
         Base.read_sub(t.rbuff, buff, nread+1, nbuff)
@@ -94,7 +94,7 @@ function read!(t::TFramedTransport, buff::Vector{UInt8})
     buff
 end
 function read(t::TFramedTransport, UInt8)
-    navlb = nb_available(t.rbuff)
+    navlb = bytesavailable(t.rbuff)
     if navlb == 0
         readframe(t)
     end
@@ -111,7 +111,7 @@ function write(t::TFramedTransport, b::UInt8)
 end
 function flush(t::TFramedTransport)
     szbuff = IOBuffer()
-    navlb = nb_available(t.wbuff)
+    navlb = bytesavailable(t.wbuff)
     @logmsg("sending data of length $navlb")
     _write_fixed(szbuff, UInt32(navlb), true)
     nbyt = write(t.tp, take!(szbuff))
