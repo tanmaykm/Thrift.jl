@@ -1,7 +1,7 @@
 module ThriftUtilsTests
 
 using Thrift
-using Base.Test
+using Compat.Test
 
 struct _enum_TestEnum
     BOOLEAN::Int32

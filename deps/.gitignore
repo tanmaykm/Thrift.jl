@@ -1,4 +1,7 @@
+usr
 bin
 lib
 src
 include
+deps.jl
+build.log

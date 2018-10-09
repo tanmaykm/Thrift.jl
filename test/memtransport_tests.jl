@@ -2,7 +2,7 @@ module MemTransportTests
 
 using Thrift
 using Compat
-using Base.Test
+using Compat.Test
 
 function testmemtransport()
     println("\nTesting memory transport...")

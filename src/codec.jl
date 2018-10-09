@@ -2,7 +2,7 @@ const MSB = 0x80
 const MASK7 = 0x7f
 const MASK8 = 0xff
 
-const _wfbuf = (Vector{UInt8}(1), Vector{UInt8}(2), Vector{UInt8}(4), Vector{UInt8}(8), Vector{UInt8}(16))
+const _wfbuf = (Vector{UInt8}(undef, 1), Vector{UInt8}(undef, 2), Vector{UInt8}(undef, 4), Vector{UInt8}(undef, 8), Vector{UInt8}(undef, 16))
 
 const TIO = Union{IO, TTransport}
 
@@ -11,7 +11,7 @@ function _write_fixed(io::TIO, ux::T, bigendian::Bool) where T <: Unsigned
     _write_fixed(io, ux, _wfbuf[Int(log2(N))+1], bigendian ? (N:-1:1) : (1:N))
 end
 
-function _write_fixed(io::TIO, ux::T, a::Vector{UInt8}, r::R) where {T <: Unsigned, R <: Range}
+function _write_fixed(io::TIO, ux::T, a::Vector{UInt8}, r::R) where {T <: Unsigned, R <: AbstractRange}
     for n in r
         a[n] = UInt8(ux & MASK8)
         ux >>>= 8
@@ -23,7 +23,7 @@ function _read_fixed(io::TIO, ret::T, N::Int, bigendian::Bool) where T <: Unsign
     r = bigendian ? ((N-1):-1:0) : (0:1:(N-1))
     for n in r
         byte = convert(T, read(io, UInt8))
-        ret |= (byte << 8*n)
+        ret |= (byte << (8*n))
     end
     ret
 end

@@ -1,6 +1,6 @@
 # Base Thrift type system
 struct TSTOP end
-const TVOID     = Void
+const TVOID     = Nothing
 const TBOOL     = Bool
 const TBYTE     = UInt8     # TBYTE is actually I8 (signed)
 const TDOUBLE   = Float64
@@ -33,17 +33,17 @@ struct _enum_TTypes
     LIST::Int32
 end
 
-const TType = _enum_TTypes(0,    1,      2,      3,       4,              6,             8,            10,    11,       12,      13,    14,     15)
-#                        0       1       2       3        4       5       6     7        8     9       10     11        12       13     14      15
-const _TTypeNames   = ("STOP", "VOID", "BOOL", "BYTE", "DOUBLE", "",    "I16", "",     "I32", "",     "I64", "STRING", "STRUCT", "MAP", "SET", "LIST")
-const _TJTypes    =   (TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE, Void,   TI16, Void,    TI32, Void,     TI64, TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST)
+const TType = _enum_TTypes(0,    1,      2,      3,       4,                6,              8,              10,      11,       12,      13,    14,    15)
+#                        0       1       2       3        4         5       6      7        8       9       10       11        12       13     14     15
+const _TTypeNames   = ("STOP", "VOID", "BOOL", "BYTE", "DOUBLE",   "",    "I16",   "",     "I32",   "",     "I64", "STRING", "STRUCT", "MAP", "SET", "LIST")
+const _TJTypes    =   (TSTOP,  TVOID,  TBOOL,  TBYTE,  TDOUBLE,  Nothing,  TI16, Nothing,  TI32,  Nothing,  TI64,  TSTRING,  TSTRUCT,  TMAP,  TSET,  TLIST)
 
 #thrift_type_name(typ::Integer) = _TTypeNames[typ+1]
 
 julia_type(typ::Integer) = _TJTypes[typ+1]
 function julia_type(typ::Integer, narrow_typ)
     wide_typ = julia_type(typ)
-    issubtype(narrow_typ, wide_typ) && (return narrow_typ)
+    (narrow_typ <: wide_typ) && (return narrow_typ)
     error("Can not resolve type. $narrow_typ is not a subtype of $wide_typ")
 end
 
@@ -544,21 +544,21 @@ end
 fillunset(obj) = (empty!(filled(obj)); nothing)
 function fillunset(obj, fld::Symbol)
     fill = filled(obj)
-    idx = findfirst(fill, fld)
+    idx = something(findfirst(isequal(fld), fill), 0)
     (idx > 0) && splice!(fill, idx)
     nothing
 end
 
 function fillset(obj, fld::Symbol)
     fill = filled(obj)
-    idx = findfirst(fill, fld)
+    idx = something(findfirst(isequal(fld), fill), 0)
     (idx > 0) && return
     push!(fill, fld)
     nothing
 end
 
 function filled(obj)
-    oid = object_id(obj)
+    oid = objectid(obj)
     haskey(_fillcache, oid) && return _fillcache[oid]
 
     fill = Symbol[]
@@ -567,7 +567,7 @@ function filled(obj)
     end
     if !isimmutable(obj)
         _fillcache[oid] = fill
-        finalizer(obj, obj->delete!(_fillcache, object_id(obj)))
+        finalizer(obj->delete!(_fillcache, objectid(obj)), obj)
     end
     fill
 end
@@ -622,8 +622,9 @@ function thriftbuild(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}()) where T
 end
 
 function enumstr(enumname, t::Int32)
-    for name in fieldnames(enumname)
+    T = typeof(enumname)
+    for name in fieldnames(T)
         (getfield(enumname, name) == t) && (return string(name))
     end
-    error("Invalid enum value $t for $(typeof(enumname))")
+    error("Invalid enum value $t for $T)")
 end

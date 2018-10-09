@@ -2,29 +2,14 @@ language: julia
 os:
     - linux
     - osx
-sudo: required
-dist: trusty
 julia:
     - 0.6
+    - 0.7
+    - 1.0
     - nightly
 matrix:
   fast_finish: true
   allow_failures:
     - julia: nightly
-    - os: osx
-addons:
-  apt:
-    packages:
-    - libssl-dev
-    - flex
-    - bison
-    - libboost-all-dev
-before_script:
-    - if [ `uname` = Darwin ]; then brew install bison; fi
 notifications:
     email: false
-#script: # default script is equivalent to the following
-#    - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-#    - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("Thrift"); Pkg.test("Thrift"; coverage=true)'
-after_success:
-  - julia -e 'cd(Pkg.dir("Thrift")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder());'

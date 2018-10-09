@@ -21,7 +21,7 @@ function serve_accepted(client::TTransport, s::TServerBase)
     catch ex
         if !isa(ex, EOFError)
             println(ex)
-            Base.show_backtrace(STDERR, catch_backtrace())
+            Base.show_backtrace(stderr, catch_backtrace())
         end
     end
     close(itrans)

@@ -217,7 +217,7 @@ string t_jl_generator::jl_imports() {
 	for (size_t i = 0; i < includes.size(); ++i) {
 		if(i > 0) (out << ", ");
 		else (out << "# import included programs" << endl << "using ");
-		out << includes[i]->get_name();
+		out << ".." << includes[i]->get_name();
 	}
 	out << endl;
 	return out.str();
@@ -544,7 +544,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		string fname = chk_keyword(tfunction->get_name());
-		string result_type = tfunction->is_oneway() ? "Void" : (fname + "_result");
+		string result_type = tfunction->is_oneway() ? "Nothing" : (fname + "_result");
 
 		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << result_type << "))" << endl;
 	}
@@ -558,6 +558,8 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	indent(f_service_) << "p" << endl;
 	indent_down();
 	indent(f_service_) << "end" << endl;
+	indent_down();
+	f_service_ << "end # mutable struct " << service_name_ << "Processor" << endl;
 
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
@@ -671,8 +673,6 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 		}
 	}
 
-	indent_down();
-	f_service_ << "end # mutable struct " << service_name_ << "Processor" << endl;
 	f_service_ << "process(p::" << service_name_ << "Processor, inp::TProtocol, outp::TProtocol) = process(p.tp, inp, outp)" << endl;
 	f_service_ << "distribute(p::" << service_name_ << "Processor) = distribute(p.tp)" << endl;
 }
