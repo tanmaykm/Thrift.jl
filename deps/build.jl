@@ -27,12 +27,12 @@ download_info = Dict(
 )
 
 if Compat.Sys.iswindows()
-    info("No pre-built Julia Thrift compiler found for your platform $(triplet(platform_key())). Not required unless you want to compile new Thrift IDLs. Follow package instructions to build on your own if needed.")
+    @info "No pre-built Julia Thrift compiler found for your platform $(triplet(platform_key_abi())). Not required unless you want to compile new Thrift IDLs. Follow package instructions to build on your own if needed."
 else
     # Install unsatisfied or updated dependencies:
     unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
-    if haskey(download_info, platform_key())
-        url, tarball_hash = download_info[platform_key()]
+    if haskey(download_info, platform_key_abi())
+        url, tarball_hash = download_info[platform_key_abi()]
         if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix)
             # Download and install binaries
             install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
@@ -41,7 +41,7 @@ else
         # If we don't have a BinaryProvider-compatible .tar.gz to download, complain.
         # Alternatively, you could attempt to install from a separate provider,
         # build from source or something even more ambitious here.
-        error("Your platform $(triplet(platform_key())) is not supported by this package!")
+        error("Your platform $(triplet(platform_key_abi())) is not supported by this package!")
     end
 
     # Write out a deps.jl file that will contain mappings for our products
