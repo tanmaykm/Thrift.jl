@@ -1,8 +1,7 @@
 module FileTransportTests
 
 using Thrift
-using Compat
-using Compat.Test
+using Test
 
 function testfiletransport()
     println("\nTesting file transport...")

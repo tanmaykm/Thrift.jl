@@ -1,17 +1,9 @@
-VERSION < v"0.7.0-beta2.199" && __precompile__(true)
-
 module Thrift
 
-using Compat
-using Compat.Distributed
+using Distributed
 
-if VERSION < v"0.7.0-DEV.4442"
-    import Base: TCPServer, listen, accept, finalizer
-    finalizer(f::Function, o) = finalizer(o, f)
-else
-    using Compat.Sockets
-    import Compat.Sockets: TCPServer, listen, accept
-end
+using Sockets
+import Sockets: TCPServer, listen, accept
 
 import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!
 
