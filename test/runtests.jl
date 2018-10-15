@@ -1,14 +1,7 @@
-using Compat
-
-if Compat.Sys.iswindows()
+if Sys.iswindows()
     info("No tests enabled for for your platform by default.")
 else
     include("gen.jl")
-
-    if VERSION < v"0.7.0-alpha"
-        macro isdefined(x)
-        end
-    end
 
     ENV["TEST_SRVR_ASYNC"] = "true"
     include("srvr.jl")
