@@ -26,7 +26,7 @@ download_info = Dict(
     FreeBSD(:x86_64) => ("$bin_prefix/JuliaThriftBuilder.v1.0.0.x86_64-unknown-freebsd11.1.tar.gz", "7ba167279dd3eed5fde8584fe88ed379e0499eaaf67a88b596783b0a8f11d9d6"),
 )
 
-if Compat.Sys.iswindows()
+if Sys.iswindows()
     @info "No pre-built Julia Thrift compiler found for your platform $(triplet(platform_key_abi())). Not required unless you want to compile new Thrift IDLs. Follow package instructions to build on your own if needed."
 else
     # Install unsatisfied or updated dependencies:
