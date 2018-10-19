@@ -26,7 +26,7 @@ download_info = Dict(
 )
 
 if Sys.iswindows()
-    info("No pre-built Julia Thrift compiler found for your platform $(triplet(platform_key())). Not required unless you want to compile new Thrift IDLs. Follow package instructions to build on your own if needed.")
+    @info "No pre-built Julia Thrift compiler found for your platform $(triplet(platform_key_abi())). Not required unless you want to compile new Thrift IDLs. Follow package instructions to build on your own if needed."
 else
     # Install unsatisfied or updated dependencies:
     unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)

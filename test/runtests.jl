@@ -1,5 +1,5 @@
 if Sys.iswindows()
-    info("No tests enabled for for your platform by default.")
+    @info "No tests enabled for for your platform by default."
 else
     include("gen.jl")
 
