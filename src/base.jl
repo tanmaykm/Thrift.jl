@@ -393,7 +393,7 @@ end
 
 ##
 # Exception types
-struct TException <: Exception
+mutable struct TException <: Exception
     message::AbstractString
 end
 
@@ -426,7 +426,7 @@ const _appex_msgs = [
     "Unsupported client type"
 ]
 
-struct TApplicationException <: Exception
+mutable struct TApplicationException <: Exception
     typ::Int32
     message::TUTF8
 
