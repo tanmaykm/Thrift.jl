@@ -111,7 +111,7 @@ function readMessageBegin(p::TBinaryProtocol)
         seqid = readI32(p)
     else
         p.strict_read && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "No protocol version header"))
-        name =  String(read!(p, Array{UInt8}(Int(sz))))
+        name =  String(read!(p, Array{UInt8}(undef, Int(sz))))
         typ = Int32(readByte(p))
         seqid = readI32(p)
     end
