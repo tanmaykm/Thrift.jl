@@ -1,10 +1,9 @@
 module Thrift
 
 using Distributed
-
 using Sockets
-import Sockets: TCPServer, listen, accept
 
+import Sockets: TCPServer, listen, accept
 import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!
 
 export open, close, isopen, read, read!, write, flush, skip, listen, accept, show, copy!
@@ -33,18 +32,6 @@ export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
 
 # from server.jl
 export TSimpleServer, TTaskServer, TProcessPoolServer, serve
-
-# enable logging only during debugging
-#using Logging
-#const logger = Logging.configure(level=DEBUG)
-##const logger = Logging.configure(filename="/tmp/thrift$(getpid()).log", level=DEBUG)
-#macro logmsg(s)
-#    quote
-#        debug($(esc(s)))
-#    end
-#end
-macro logmsg(s)
-end
 
 include("base.jl")
 include("codec.jl")
