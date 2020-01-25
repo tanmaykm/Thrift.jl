@@ -33,6 +33,10 @@ export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
 # from server.jl
 export TSimpleServer, TTaskServer, TProcessPoolServer, serve
 
+if !isdefined(Base, :fieldtypes)
+    fieldtypes(T::Type) = ntuple(i -> fieldtype(T, i), fieldcount(T))
+end
+
 include("base.jl")
 include("codec.jl")
 include("sasl.jl")
