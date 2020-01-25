@@ -35,10 +35,10 @@ end
 
 function writeMessageBegin(p::TBinaryProtocol, name::AbstractString, mtype::Int32, seqid::Integer)
     nbyt = 0
-    @logmsg("writeMessageBegin name: $name, mtype: $mtype, seqid: $seqid")
+    @debug("writeMessageBegin",name, mtype, seqid)
     if p.strict_write
         nbyt += write(p, BINARY_VERSION_1 | UInt32(mtype))
-        @logmsg("wrote protocol version header $nbyt bytes")
+        @debug("wrote protocol version header", nbyt)
         nbyt += writeString(p, name)
         nbyt += writeI32(p, seqid)
     else
@@ -50,7 +50,7 @@ function writeMessageBegin(p::TBinaryProtocol, name::AbstractString, mtype::Int3
 end
 
 function writeFieldBegin(p::TBinaryProtocol, name::AbstractString, ttype::Int32, fid::Integer)
-    @logmsg("writeFieldBegin name: $name, ttype: $ttype, fid: $fid")
+    @debug("writeFieldBegin", name, ttype, fid)
     nbyt = writeByte(p, ttype)
     nbyt += writeI16(p, fid)
     nbyt
@@ -59,7 +59,7 @@ end
 writeFieldStop(p::TBinaryProtocol) = writeByte(p, TType.STOP)
 
 function writeMapBegin(p::TBinaryProtocol, ktype::Int32, vtype::Int32, size::Integer)
-    @logmsg("writeMapBegin ktype: $ktype, vtype: $vtype, size: $size")
+    @debug("writeMapBegin", ktype, vtype, size)
     nbyt = writeByte(p, ktype)
     nbyt += writeByte(p, vtype)
     nbyt += writeI32(p, size)
@@ -67,7 +67,7 @@ function writeMapBegin(p::TBinaryProtocol, ktype::Int32, vtype::Int32, size::Int
 end
 
 function writeCollectionsBegin(p::TBinaryProtocol, etype::Int32, size::Integer)
-    @logmsg("writeCollectionsBegin etype: $etype, size: $size")
+    @debug("writeCollectionsBegin", etype, size)
     nbyt = writeByte(p, etype)
     nbyt += writeI32(p, size)
     nbyt
@@ -101,7 +101,7 @@ function write(p::TBinaryProtocol, a::Vector{UInt8}, framed::Bool=false)
 end
 
 function readMessageBegin(p::TBinaryProtocol)
-    @logmsg("readMessageBegin")
+    @debug("readMessageBegin")
     sz = read(p, UInt32)
     if sz > BINARY_VERSION_1
         version = sz & BINARY_VERSION_MASK
@@ -115,15 +115,15 @@ function readMessageBegin(p::TBinaryProtocol)
         typ = Int32(readByte(p))
         seqid = readI32(p)
     end
-    @logmsg("readMessageBegin read name: $name, mtyp: $typ, seqid: $seqid, size: $sz")
+    @debug("readMessageBegin read", name, typ, seqid, sz)
     (name, typ, seqid)
 end
 
 function readFieldBegin(p::TBinaryProtocol)
-    @logmsg("readFieldBegin")
+    @debug("readFieldBegin")
     typ = readByte(p)
     fid = (typ == TType.STOP) ? Int16(0) : readI16(p)
-    @logmsg("readFieldBegin, typ: $typ, id: $fid")
+    @debug("readFieldBegin", typ, fid)
     (nothing, typ, fid)
 end
 readFieldStop(p::TBinaryProtocol) = readByte(p)
@@ -219,13 +219,13 @@ end
 writeVarint(p::TCompactProtocol, i::T) where {T <: Integer} = _write_uleb(p.t, i)
 readVarint(p::TCompactProtocol, t::Type{T}) where {T <: Integer} = _read_uleb(p.t, t)
 
-#chkstate(p, s) = !(p.state in s) && (logmsg("chkstate: $(p.state) vs. $s"); error("Internal error. Incorrect state."))
+#chkstate(p, s) = !(p.state in s) && (@debug("chkstate: $(p.state) vs. $s"); error("Internal error. Incorrect state."))
 chkstate(p, s) = !(p.state in s) && error("Internal error. Incorrect state $(p.state). Expected: $s")
 byte2ctype(byte) = (byte & 0x0f)
 byte2ttype(byte) = CTYPE_TO_TTYPE[byte2ctype(byte) + 0x01]
 
 function writeMessageBegin(p::TCompactProtocol, name::AbstractString, mtype::Int32, seqid::Integer)
-    @logmsg("writeMessageBegin name: $name, mtype: $mtype, seqid: $seqid")
+    @debug("writeMessageBegin", name, mtype, seqid)
     chkstate(p, CState.CLEAR)
     nbyt = writeByte(p, COMPACT_PROTOCOL_ID)
     nbyt += writeByte(p, COMPACT_VERSION | (mtype << COMPACT_TYPE_SHIFT_AMOUNT))
@@ -236,14 +236,14 @@ function writeMessageBegin(p::TCompactProtocol, name::AbstractString, mtype::Int
 end
 
 function writeMessageEnd(p::TCompactProtocol)
-    @logmsg("writeMessageEnd")
+    @debug("writeMessageEnd")
     chkstate(p, CState.VALUE_WRITE)
     p.state = CState.CLEAR
     0
 end
 
 function writeStructBegin(p::TCompactProtocol, name::AbstractString)
-    @logmsg("writeStructBegin $name")
+    @debug("writeStructBegin", name)
     chkstate(p, CSTATES_WRITE_STRUCT_BEGIN)
     push!(p.structs, (p.state, p.last_fid))
     p.state = CState.FIELD_WRITE
@@ -252,7 +252,7 @@ function writeStructBegin(p::TCompactProtocol, name::AbstractString)
 end
 
 function writeStructEnd(p::TCompactProtocol)
-    @logmsg("writeStructEnd")
+    @debug("writeStructEnd")
     chkstate(p, CState.FIELD_WRITE)
     (p.state, p.last_fid) = pop!(p.structs)
     0
@@ -261,7 +261,7 @@ end
 writeFieldStop(p::TCompactProtocol) = writeByte(p, 0x00)
 
 function writeFieldHeader(p::TCompactProtocol, mtype::UInt8, fid::Int16)
-    @logmsg("writeFieldHeader mtype:$mtype, fid:$fid last_fid:$(p.last_fid)")
+    @debug("writeFieldHeader", mtype, fid, last_fid=p.last_fid)
     nbyt = 0
     delta = fid - p.last_fid
     if 0 < delta <= 15
@@ -275,7 +275,7 @@ function writeFieldHeader(p::TCompactProtocol, mtype::UInt8, fid::Int16)
 end
 
 function writeFieldBegin(p::TCompactProtocol, name::AbstractString, ttype::Int32, fid::Integer)
-    @logmsg("writeFieldBegin $name, ttype:$ttype, fid:$fid")
+    @debug("writeFieldBegin", name, ttype, fid)
     nbyt = 0
     chkstate(p, CState.FIELD_WRITE)
     if ttype == TType.BOOL
@@ -289,14 +289,14 @@ function writeFieldBegin(p::TCompactProtocol, name::AbstractString, ttype::Int32
 end
 
 function writeFieldEnd(p::TCompactProtocol)
-    @logmsg("writeFieldEnd")
+    @debug("writeFieldEnd")
     chkstate(p, CSTATES_WRITE_FIELD_END)
     p.state = CState.FIELD_WRITE
     0
 end
 
 function writeCollectionsBegin(p::TCompactProtocol, etype::Int32, sz::Int32)
-    @logmsg("writeCollectionsBegin etype:$etype sz:$sz")
+    @debug("writeCollectionsBegin", etype, sz)
     nbyt = 0
     chkstate(p, CSTATES_WRITE_COLLECTION_BEGIN)
     if sz <= 14
@@ -313,7 +313,7 @@ writeSetBegin(p::TCompactProtocol, etype::Int32, size::Integer) = writeCollectio
 writeListBegin(p::TCompactProtocol, etype::Int32, size::Integer) = writeCollectionsBegin(p, etype, Int32(size))
 
 function writeMapBegin(p::TCompactProtocol, ktype::Int32, vtype::Int32, size::Integer)
-    @logmsg("writeMapBegin ktype:$ktype vtype:$vtype size:$size")
+    @debug("writeMapBegin", ktype, vtype, size)
     nbyt = 0
     chkstate(p, CSTATES_WRITE_COLLECTION_BEGIN)
     if size == 0
@@ -328,7 +328,7 @@ function writeMapBegin(p::TCompactProtocol, ktype::Int32, vtype::Int32, size::In
 end
 
 function writeCollectionEnd(p::TCompactProtocol)
-    @logmsg("writeCollectionEnd")
+    @debug("writeCollectionEnd")
     chkstate(p, CState.CONTAINER_WRITE)
     p.state = pop!(p.containers)
     0
@@ -358,18 +358,18 @@ write(p::TCompactProtocol, d::TDOUBLE)          = _write_fixed(p.t, reinterpret(
 write(p::TCompactProtocol, s::TUTF8)            = write(p, convert(Vector{UInt8}, codeunits(s)), true)
 function write(p::TCompactProtocol, a::Vector{UInt8}, framed::Bool=false)
     if framed
-        @logmsg("writing framed binary")
+        @debug("writing framed binary")
         nbyt = writeSize(p, length(a))
         nbyt += write(p, a)
         nbyt
     else
-        @logmsg("writing unframed binary")
+        @debug("writing unframed binary")
         write(p.t, a)
     end
 end
 
 function readMessageBegin(p::TCompactProtocol)
-    @logmsg("readMessageBegin")
+    @debug("readMessageBegin")
     chkstate(p, CState.CLEAR)
     proto_id = readByte(p)
     (proto_id != COMPACT_PROTOCOL_ID) && error("Incorrect protocol id: $proto_id")
@@ -379,19 +379,19 @@ function readMessageBegin(p::TCompactProtocol)
     (version != COMPACT_VERSION) && error("Incorrect version: $version. Need $COMPACT_VERSION")
     seqid = readVarint(p, Int32)
     name = readString(p)
-    @logmsg("readMessageBegin read name: $name, mtyp: $typ, seqid: $seqid")
+    @debug("readMessageBegin", name, typ, seqid)
     (name, Int32(typ), seqid)
 end
 
 function readMessageEnd(p::TCompactProtocol)
-    @logmsg("readMessageEnd")
+    @debug("readMessageEnd")
     chkstate(p, CState.CLEAR)
     !isempty(p.structs) && error("Reading message went bad somewhere!")
     nothing
 end
 
 function readStructBegin(p::TCompactProtocol)
-    @logmsg("readStructBegin")
+    @debug("readStructBegin")
     chkstate(p, CSTATES_READ_STRUCT_BEGIN)
     push!(p.structs, (p.state, p.last_fid))
     p.state = CState.FIELD_READ
@@ -400,14 +400,14 @@ function readStructBegin(p::TCompactProtocol)
 end
 
 function readStructEnd(p::TCompactProtocol)
-    @logmsg("readStructEnd")
+    @debug("readStructEnd")
     chkstate(p, CState.FIELD_READ)
     (p.state, p.last_fid) = pop!(p.structs)
     nothing
 end
 
 function readFieldBegin(p::TCompactProtocol)
-    @logmsg("readFieldBegin")
+    @debug("readFieldBegin")
     chkstate(p, CState.FIELD_READ)
     typ = readByte(p)
     ((typ & 0x0f) == TType.STOP) && (return (nothing, Int32(0), Int16(0)))
@@ -425,19 +425,19 @@ function readFieldBegin(p::TCompactProtocol)
     else
         p.state = CState.VALUE_READ
     end
-    @logmsg("readFieldBegin, typ: $(byte2ttype(typ))")
+    @debug("readFieldBegin", typ=byte2ttype(typ))
     (nothing, byte2ttype(typ), fid)
 end
 
 function readFieldEnd(p::TCompactProtocol)
-    @logmsg("readFieldEnd")
+    @debug("readFieldEnd")
     chkstate(p, CSTATES_READ_FIELD_END)
     p.state = CState.FIELD_READ
     nothing
 end
 
 function readCollectionBegin(p::TCompactProtocol)
-    @logmsg("readCollectionBegin")
+    @debug("readCollectionBegin")
     chkstate(p, CSTATES_READ_COLLECTION_BEGIN)
     size_type = readByte(p)
     size = size_type >> 4
@@ -452,24 +452,23 @@ readSetBegin(p::TCompactProtocol) = readCollectionBegin(p)
 readListBegin(p::TCompactProtocol) = readCollectionBegin(p)
 
 function readMapBegin(p::TCompactProtocol)
-    @logmsg("readMapBegin")
+    @debug("readMapBegin")
     chkstate(p, CSTATES_READ_COLLECTION_BEGIN)
     size = readSize(p)
-    @logmsg("size: $size")
+    @debug("map size", size)
     types = (size > 0) ? readByte(p) : 0
-    @logmsg("types: $types")
+    @debug("map types", types)
     vtype = byte2ttype(types)
-    @logmsg("vtype: $vtype")
+    @debug("map vtype", vtype)
     ktype = byte2ttype(types >> 4)
-    @logmsg("ktype: $ktype")
-    @logmsg("types >> 4: $(types >> 4)")
+    @debug("map ktype", ktype)
     push!(p.containers, p.state)
     p.state = CState.CONTAINER_READ
     (ktype, vtype, size)
 end
 
 function readCollectionEnd(p::TCompactProtocol)
-    @logmsg("readCollectionEnd")
+    @debug("readCollectionEnd")
     chkstate(p, CState.CONTAINER_READ)
     p.state = pop!(p.containers)
     nothing

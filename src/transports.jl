@@ -39,11 +39,11 @@ flush(t::TSASLClientTransport)  = flush(t.tp)
 read!(t::TSASLClientTransport, buff::Vector{UInt8}) = read!(t.tp, buff)
 read(t::TSASLClientTransport, UInt8) = read(t.tp, UInt8)
 function write(t::TSASLClientTransport, buff::Vector{UInt8})
-    @logmsg("TSASLClientTransport buffering $(length(buff)) bytes")
+    @debug("TSASLClientTransport buffering bytes", len=length(buff))
     write(t.tp, buff)
 end
 function write(t::TSASLClientTransport, b::UInt8)
-    @logmsg("TSASLClientTransport buffering 1 byte")
+    @debug("TSASLClientTransport buffering 1 byte")
     write(t.tp, b)
 end
 
@@ -67,11 +67,11 @@ isopen(t::TFramedTransport) = isopen(t.tp)
 
 readframesz(t::TFramedTransport) = _read_fixed(t.tp, UInt32(0), 4, true)
 function readframe(t::TFramedTransport)
-    @logmsg("TFramedTransport reading frame")
+    @debug("TFramedTransport reading frame")
     sz = readframesz(t)
-    @logmsg("TFramedTransport reading frame of $sz bytes")
+    @debug("TFramedTransport reading frame", sz)
     write(t.rbuff, read!(t.tp, Vector{UInt8}(undef,sz)))
-    @logmsg("TFramedTransport read frame of $sz bytes")
+    @debug("TFramedTransport read frame", sz)
     nothing
 end
 
@@ -83,7 +83,7 @@ function read!(t::TFramedTransport, buff::Vector{UInt8})
         navlb = bytesavailable(t.rbuff)
         nremain = ntotal - nread
         if navlb < nremain
-            @logmsg("navlb: $navlb, nremain: $nremain, reading new frame")
+            @debug("reading new frame", navlb, nremain)
             readframe(t)
             navlb = bytesavailable(t.rbuff)
         end
@@ -102,21 +102,21 @@ function read(t::TFramedTransport, UInt8)
 end
 
 function write(t::TFramedTransport, buff::Vector{UInt8})
-    @logmsg("TFramedTransport buffering $(length(buff)) bytes")
+    @debug("TFramedTransport buffering bytes", len=length(buff))
     write(t.wbuff, buff)
 end
 function write(t::TFramedTransport, b::UInt8)
-    @logmsg("TFramedTransport buffering 1 byte")
+    @debug("TFramedTransport buffering 1 byte")
     write(t.wbuff, b)
 end
 function flush(t::TFramedTransport)
     szbuff = IOBuffer()
     navlb = bytesavailable(t.wbuff)
-    @logmsg("sending data of length $navlb")
+    @debug("sending data", navlb)
     _write_fixed(szbuff, UInt32(navlb), true)
     nbyt = write(t.tp, take!(szbuff))
     nbyt += write(t.tp, take!(t.wbuff))
-    @logmsg("wrote frame of size $nbyt")
+    @debug("wrote frame", nbyt)
     flush(t.tp)
 end
 

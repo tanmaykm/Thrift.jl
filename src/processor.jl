@@ -20,7 +20,7 @@ extend(p::ThriftProcessor, extends::ThriftProcessor) = (setfield!(p, :extends, e
 distribute(p::ThriftProcessor, use_spawn::Bool=true) = (setfield!(p, :use_spawn, use_spawn); nothing)
 
 function _reply(outp::TProtocol, name::AbstractString, seqid::Int32, mtyp::Int32, m::Any)
-    @logmsg("_reply $name:$seqid $m")
+    @debug("_reply", name, seqid, m)
     writeMessageBegin(outp, name, mtyp, seqid)
     write(outp, m)
     writeMessageEnd(outp)
@@ -31,7 +31,7 @@ end
 _exception(extyp::Int32, exmsg::AbstractString, outp::TProtocol, name::AbstractString, seqid::Int32) = _reply(outp, name, seqid, MessageType.EXCEPTION, TApplicationException(extyp, exmsg))
 
 function process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol)
-    @logmsg("process begin")
+    @debug("process begin")
     (name, typ, seqid) = readMessageBegin(inp)
 
     haskey(p.handlers, name) && (return _process(p, inp, outp, name, typ, seqid))
@@ -45,16 +45,16 @@ end
 
 function _process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol, name::AbstractString, typ::Int32, seqid::Int32)
     handler = p.handlers[name]
-    @logmsg("_process: reading instruct of type $(handler.intyp)")
+    @debug("_process: reading instruct", type=handler.intyp)
     instruct = read(inp, handler.intyp)
     readMessageEnd(inp)
-    @logmsg("_process: calling handler function")
+    @debug("_process: calling handler function")
     if p.use_spawn
         outstruct = fetch(@spawn handler.fn(instruct))
     else
         outstruct = handler.fn(instruct)
     end
-    @logmsg("_process: out of handler function. return val: $outstruct")
+    @debug("_process: out of handler function", outstruct)
     if !isa(outstruct, handler.outtyp)
         _exception(ApplicationExceptionType.MISSING_RESULT, "Invalid return type. Expected $(handler.outtyp). Got $(typeof(outstruct))", outp, name, seqid)
         return

@@ -67,11 +67,11 @@ end
 
 function sasl_read(io::IO)
     status = read(io, UInt8)
-    @logmsg("read_sasl read status $status")
+    @debug("read_sasl", status)
     len = _read_fixed(io, UInt32(0), 4, true)
-    @logmsg("read_sasl read len $len")
+    @debug("read_sasl", len)
     data = read!(io, Vector{UInt8}(undef, len))
-    @logmsg("read_sasl read data $data")
+    @debug("read_sasl", data)
     (status, len, data)
 end
 
@@ -92,18 +92,18 @@ function sasl_negotiate_plain(io::IO, callback::Function)
 
     # start negotiation, indicate protocol
     nbyt = sasl_write(io, SASL_START, SASL_MECH_PLAIN)
-    @logmsg("negotiate_sasl wrote $nbyt bytes")
+    @debug("negotiate_sasl wrote", nbyt)
     # send credentials
     nbyt = sasl_write(io, SASL_OK, take!(creds))
-    @logmsg("negotiate_sasl wrote $nbyt bytes")
+    @debug("negotiate_sasl wrote", nbyt)
 
     (status, len, data) = sasl_read(io)
-    @logmsg("negotiate_sasl read $status, $len, $data")
+    @debug("negotiate_sasl read", status, len, data)
     validate_sasl_status(status, data, (SASL_COMPLETE,))
 
     # send COMPLETE
     #nbyt = sasl_write(io, SASL_COMPLETE, "")
-    #@logmsg("negotiate_sasl wrote $nbyt bytes")
+    #@debug("negotiate_sasl wrote $nbyt bytes")
 
     nothing
 end

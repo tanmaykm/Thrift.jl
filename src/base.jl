@@ -148,7 +148,7 @@ readBinary(p::TProtocol)           = read(p, TBINARY)
 
 skip(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = skip_container(p, T)
 function skip_container(p::TProtocol, ::Type{T}) where T<:TSTRUCT
-    @logmsg("skip TSTRUCT")
+    @debug("skip TSTRUCT")
     name = readStructBegin(p)
     while true
         (name, ttype, id) = readFieldBegin(p)
@@ -168,11 +168,11 @@ read(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p, T())
 read_container(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = read_container(p, T())
 read(p::TProtocol, val::T) where {T<:TSTRUCT} = read_container(p, val)
 function read_container(p::TProtocol, val::T) where T<:TSTRUCT
-    @logmsg("read TSTRUCT $T")
+    println("read TSTRUCT $T")
     readStructBegin(p)
 
     m = meta(T)
-    @logmsg("struct meta: $m")
+    println("struct meta: $m")
     fillunset(val)
     while true
         (name, ttyp, id) = readFieldBegin(p)
@@ -183,14 +183,14 @@ function read_container(p::TProtocol, val::T) where T<:TSTRUCT
         fldname = attribs.fld
         if iscontainer(ttyp)
             if isdefined(val, fldname)
-                @logmsg("reading a $jtyp into already defined container $fldname")
+                @debug("reading into already defined container field", jtyp, fldname)
                 read_container(p, jtyp, getfield(val, fldname))
             else
-                @logmsg("setting a $jtyp into container $fldname")
+                @debug("setting into container field", jtyp, fldname)
                 setfield!(val, fldname, read_container(p, jtyp))
             end
         else
-            @logmsg("setting a $jtyp into $fldname")
+            @debug("setting field", jtyp, fldname)
             setfield!(val, fldname, read(p, jtyp))
         end
         fillset(val, fldname)
@@ -214,7 +214,7 @@ end
 write(p::TProtocol, val::T) where {T<:TSTRUCT} = write_container(p, val)
 function write_container(p::TProtocol, val::T) where T<:TSTRUCT
     m = meta(T)
-    @logmsg("write TSTRUCT $T with meta $m")
+    @debug("write TSTRUCT", T, meta=m)
     writeStructBegin(p, string(T))
 
     for attrib in m.ordered
@@ -238,7 +238,7 @@ end
 
 skip(p::TProtocol, ::Type{T}) where {T<:TMAP} = skip_container(p, T)
 function skip_container(p::TProtocol, ::Type{T}) where T<:TMAP
-    @logmsg("skip TMAP $T")
+    @debug("skip TMAP", T)
     (ktype, vtype, size) = readMapBegin(p)
     if size > 0
         jktype = julia_type(ktype)
@@ -255,11 +255,11 @@ end
 read(p::TProtocol, ::Type{T}) where {T<:TMAP} = read(p, T())
 read(p::TProtocol, val::T) where {T<:TMAP} = read_container(p, val)
 function read_container(p::TProtocol, val::T) where T<:TMAP
-    @logmsg("read TMAP $T")
+    @debug("read TMAP", T)
     (ktype, vtype, size) = readMapBegin(p)
     if size > 0
         # types are valid only when size is non zero
-        (_ktype, _vtype) = eltype(val).types
+        (_ktype, _vtype) = fieldtypes(eltype(val))
         jktype = julia_type(ktype, _ktype)
         jvtype = julia_type(vtype, _vtype)
         for i in 1:size
@@ -274,17 +274,17 @@ end
 
 write(p::TProtocol, val::TMAP) = write_container(p, val)
 function write_container(p::TProtocol, val::TMAP)
-    @logmsg("write TMAP $(typeof(val)), size: $(length(val))")
-    (ktype,vtype) = eltype(val).types
+    @debug("write TMAP", valtype=typeof(val), size=length(val))
+    (ktype,vtype) = fieldtypes(eltype(val))
     writeMapBegin(p, thrift_type(ktype), thrift_type(vtype), length(val))
     for (k,v) in val
-        @logmsg("write TMAP key")
+        @debug("write TMAP key")
         if ktype === Vector{UInt8}
             write(p, k, true)
         else
             write(p, k)
         end
-        @logmsg("write TMAP value")
+        @debug("write TMAP value")
         if vtype === Vector{UInt8}
             write(p, v, true)
         else
@@ -296,7 +296,7 @@ end
 
 skip(p::TProtocol, ::Type{T}) where {T<:TSET} = skip_container(p, T)
 function skip_container(p::TProtocol, ::Type{T}) where T<:TSET
-    @logmsg("skip TSET $T")
+    @debug("skip TSET", T)
     (etype, size) = readSetBegin(p)
     if size > 0
         jetype = julia_type(etype)
@@ -310,7 +310,7 @@ end
 read(p::TProtocol, ::Type{T}) where {T<:TSET} = read(p, T())
 read(p::TProtocol, val::T) where {T<:TSET} = read_container(p, val)
 function read_container(p::TProtocol, val::T) where T<:TSET
-    @logmsg("read TSET $T")
+    @debug("read TSET", T)
     (etype, size) = readSetBegin(p)
     if size > 0
         jetype = julia_type(etype, eltype(val))
@@ -324,7 +324,7 @@ end
 
 write(p::TProtocol, val::TSET) = write_container(p, val)
 function write_container(p::TProtocol, val::TSET)
-    @logmsg("write TSET $(typeof(val)), size: $(length(val))")
+    @debug("write TSET", valtype=typeof(val), size=length(val))
     jetype = eltype(val)
     tetype = thrift_type(jetype)
     writeSetBegin(p, tetype, length(val))
@@ -347,7 +347,7 @@ end
 
 skip(p::TProtocol, ::Type{T}) where {T<:TLIST} = skip_container(p, T)
 function skip_container(p::TProtocol, ::Type{T}) where T<:TLIST
-    @logmsg("skip TLIST $T")
+    @debug("skip TLIST", T)
     (etype, size) = readListBegin(p)
     if size > 0
         jetype = julia_type(etype)
@@ -361,7 +361,7 @@ end
 read(p::TProtocol, ::Type{T}) where {T<:TLIST} = read(p, T())
 read(p::TProtocol, val::T) where {T<:TLIST} = read_container(p, val)
 function read_container(p::TProtocol, val::T) where T<:TLIST
-    @logmsg("read TLIST $T")
+    @debug("read TLIST", T)
     (etype, size) = readListBegin(p)
     if size > 0
         jetype = julia_type(etype, eltype(val))
@@ -375,7 +375,7 @@ end
 
 write(p::TProtocol, val::TLIST) = write_container(p, val)
 function write_container(p::TProtocol, val::TLIST)
-    @logmsg("write TLIST $(typeof(val)), size: $(length(val))")
+    @debug("write TLIST", valtype=typeof(val), size=length(val))
     etype = eltype(val)
     writeListBegin(p, thrift_type(etype), length(val))
     # TODO: need meta to convert type correctly
@@ -507,7 +507,7 @@ function meta(typ::Type, optional::Vector{Symbol}, numbers::Vector{Int}, default
 
     attribs = ThriftMetaAttribs[]
     names = fieldnames(typ)
-    types = typ.types
+    types = fieldtypes(typ)
     for fldidx in 1:length(names)
         fldtyp = types[fldidx]
         fldttyp = thrift_type(fldtyp)
