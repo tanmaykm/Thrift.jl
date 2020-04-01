@@ -168,11 +168,11 @@ read(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p, T())
 read_container(p::TProtocol, ::Type{T}) where {T<:TSTRUCT} = read_container(p, T())
 read(p::TProtocol, val::T) where {T<:TSTRUCT} = read_container(p, val)
 function read_container(p::TProtocol, val::T) where T<:TSTRUCT
-    println("read TSTRUCT $T")
+    @debug("read TSTRUCT", T)
     readStructBegin(p)
 
     m = meta(T)
-    println("struct meta: $m")
+    @debug("struct meta", meta=m)
     fillunset(val)
     while true
         (name, ttyp, id) = readFieldBegin(p)
