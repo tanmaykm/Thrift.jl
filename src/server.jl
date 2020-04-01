@@ -20,8 +20,7 @@ function serve_accepted(client::TTransport, s::TServerBase)
         end
     catch ex
         if !isa(ex, EOFError)
-            println(ex)
-            Base.show_backtrace(stderr, catch_backtrace())
+            @error("exception serving request", exception=(ex, catch_backtrace()))
         end
     end
     close(itrans)
