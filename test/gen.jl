@@ -1,8 +1,9 @@
-testdir = dirname(@__FILE__)
-ENV["PATH"] = join([joinpath(dirname(testdir), "deps", "usr", "bin"), ENV["PATH"]], Sys.iswindows() ? ";" : ":")
+using Thrift
 
-run(Cmd(`thrift -gen jl srvcctrl.thrift`, env=ENV))
-run(Cmd(`thrift -gen jl proto_tests.thrift`, env=ENV))
+testdir = dirname(@__FILE__)
+
+Thrift.generate("srvcctrl.thrift")
+Thrift.generate("proto_tests.thrift")
 println("Compiled IDLs...")
 
 cp(joinpath(testdir, "srvcctrl_impl.jl"), joinpath(testdir, "gen-jl", "srvcctrl", "srvcctrl_impl.jl"); force=true)

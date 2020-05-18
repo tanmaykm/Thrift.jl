@@ -2,6 +2,7 @@ module Thrift
 
 using Distributed
 using Sockets
+using ThriftJuliaCompiler_jll
 
 import Sockets: TCPServer, listen, accept
 import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!
@@ -33,8 +34,10 @@ export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
 # from server.jl
 export TSimpleServer, TTaskServer, TProcessPoolServer, serve
 
-if !isdefined(Base, :fieldtypes)
-    fieldtypes(T::Type) = ntuple(i -> fieldtype(T, i), fieldcount(T))
+function generate(idl_file::String; dir::String=pwd())
+    thrift() do thrift_cmd
+        run(Cmd(`$thrift_cmd -gen jl $idl_file`; dir=dir))
+    end
 end
 
 include("base.jl")
