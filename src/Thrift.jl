@@ -3,6 +3,7 @@ module Thrift
 using Distributed
 using Sockets
 using ThriftJuliaCompiler_jll
+using HTTP
 
 import Sockets: TCPServer, listen, accept
 import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!
