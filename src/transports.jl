@@ -195,3 +195,33 @@ read!(t::TFileTransport, buff::Vector{UInt8}) = read!(t.handle, buff)
 read(t::TFileTransport, UInt8) = read(t.handle, UInt8)
 write(t::TFileTransport, buff::Vector{UInt8}) = write(t.handle, buff)
 write(t::TFileTransport, b::UInt8) = write(t.handle, b)
+
+# Thrift Http Transport
+mutable struct THttpClient <: Thrift.TTransport
+    url::String
+    headers::Dict
+    rbuff::IOBuffer
+    wbuff::IOBuffer
+    THttpClient(url::String, headers::Dict) = new(url, headers, PipeBuffer(), PipeBuffer())
+end
+
+function flush(t::THttpClient)
+    t.rbuff = PipeBuffer()
+    headers = Dict(
+        "Content-Type" => "application/x-thrift",
+    );
+    for (key, val) in t.headers
+        headers[key] = val
+    end
+    response = HTTP.request("POST", t.url, headers=headers, body=body = take!(t.wbuff))
+    write(t.rbuff, response.body)
+    t.wbuff = PipeBuffer()
+end
+
+open(t::THttpClient) = nothing
+close(t::THttpClient) = nothing
+isopen(t::THttpClient) = true
+write(t::THttpClient, buff::Vector{UInt8}) = write(t.wbuff, buff)
+write(t::THttpClient, b::UInt8) = write(t.wbuff, b)
+read!(t::THttpClient, buff::Vector{UInt8}) = read!(t.rbuff, buff)
+read(t::THttpClient, UInt8) = read(t.rbuff, UInt8)
