@@ -6,6 +6,7 @@ version = "0.7.0"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 ThriftJuliaCompiler_jll = "815b9798-8dd0-5549-95cc-3cf7d01bce66"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
