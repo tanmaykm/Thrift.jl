@@ -13,7 +13,7 @@ function calculate(oper::AbstractString, p1::Int32, p2::Int32)
     ret = (eval(symbol(oper)))(p1, p2)
     if ret > (2^31 - 1) 
         ex = InvalidOperation()
-        set_field!(ex, :oper, "$oper($p1, $p2) overflows")
+        ex.oper = "$oper($p1, $p2) overflows"
         throw(ex)
     end
     ret
@@ -23,7 +23,7 @@ function float_calculate(oper::AbstractString, p1::Float64, p2::Float64)
     ret = (eval(symbol(oper)))(p1, p2)
     if ret > (2^63 - 1) 
         ex = InvalidFloatOperation()
-        set_field!(ex, :oper, "$oper($p1, $p2) overflows")
+        ex.oper = "$oper($p1, $p2) overflows"
         throw(ex)
     end
     ret
@@ -38,6 +38,6 @@ function calcsrvr()
     serve(srvr)
     println("server stopped")
 end 
-    
+
 calcsrvr()
 

@@ -28,7 +28,7 @@ function _reply(outp::TProtocol, name::AbstractString, seqid::Int32, mtyp::Int32
     nothing
 end
 
-_exception(extyp::Int32, exmsg::AbstractString, outp::TProtocol, name::AbstractString, seqid::Int32) = _reply(outp, name, seqid, MessageType.EXCEPTION, TApplicationException(extyp, exmsg))
+_exception(extyp::Int32, exmsg::AbstractString, outp::TProtocol, name::AbstractString, seqid::Int32) = _reply(outp, name, seqid, MessageType.EXCEPTION, TApplicationException(; typ=extyp, message=exmsg))
 
 function process(p::ThriftProcessor, inp::TProtocol, outp::TProtocol)
     @debug("process begin")

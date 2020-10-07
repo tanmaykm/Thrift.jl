@@ -1,7 +1,7 @@
 using Thrift
 using Test
 
-import Thrift.process, Thrift.meta
+import Thrift: process, meta
 
 
 global srvr
@@ -28,24 +28,24 @@ function make_server()
     #srvr = TTaskServer(srvr_transport, srvr_processor, transport_factory, protocol_factory, transport_factory, protocol_factory)
     srvr = TSimpleServer(srvr_transport, srvr_processor, transport_factory, protocol_factory, transport_factory, protocol_factory)
 
-    println("Transport: $(typeof(srvr_transport))")
-    println("Protocol : $(typeof(protocol_factory(srvr_transport)))")
-    println("Processor: $(typeof(srvr_processor))")
-    println("Server   : $(typeof(srvr))")
+    @info("server transport: $(typeof(srvr_transport))")
+    @info("server protocol : $(typeof(protocol_factory(srvr_transport)))")
+    @info("server processor: $(typeof(srvr_processor))")
+    @info("server type: $(typeof(srvr))")
     srvr
 end
 
 srvr = make_server()
 # start serving client requests
-println("Starting to serve requests...")
+@debug("server starting to serve requests...")
 
 if haskey(ENV, "TEST_SRVR_ASYNC")
     @async try
         start_service(srvr)
     catch ex
-        println("Server stopped with $ex")
+        isa(ex, Base.IOError) || @error("Server stopped with $ex")
     finally
-        println("Stopped serving requests.")
+        @info("server stopped serving requests.")
     end
 else
     start_service(srvr)

@@ -64,14 +64,14 @@ thrift_type(::Type{T}) where {T<:Dict}           = Int32(13)
 thrift_type(::Type{T}) where {T<:Set}            = Int32(14)
 thrift_type(::Type{T}) where {T<:Array}          = Int32(15)
 
-const _container_type_ids = (TType.STRUCT, TType.MAP, TType.SET, TType.LIST)
-const _container_types    = (TSTRUCT, TMAP, TSET, TLIST)
-const _plain_type_ids = (TType.BOOL, TType.BYTE, TType.DOUBLE, TType.I16, TType.I32, TType.I64, TType.STRING)
-const _plain_types = (TBOOL, TBYTE, TDOUBLE, TI16, TI32, TI64, TBINARY, TUTF8)
-iscontainer(typ::Integer)       = (Int32(typ) in _container_type_ids)
-iscontainer(typ::Type{T}) where {T}    = iscontainer(thrift_type(typ))
-isplain(typ::Integer)           = (Int32(typ) in _plain_type_ids)
-isplain(typ::Type{T}) where {T}        = isplain(thrift_type(typ))
+const _container_type_ids   = (TType.STRUCT, TType.MAP, TType.SET, TType.LIST)
+const _container_types      = (TSTRUCT, TMAP, TSET, TLIST)
+const _plain_type_ids       = (TType.BOOL, TType.BYTE, TType.DOUBLE, TType.I16, TType.I32, TType.I64, TType.STRING)
+const _plain_types          = (TBOOL, TBYTE, TDOUBLE, TI16, TI32, TI64, TBINARY, TUTF8)
+iscontainer(typ::T)         where {T <: Integer}    = (Int32(typ) in _container_type_ids)
+iscontainer(typ::Type{T})   where {T}               = iscontainer(thrift_type(typ))
+isplain(typ::T)             where {T <: Integer}    = (Int32(typ) in _plain_type_ids)
+isplain(typ::Type{T})       where {T}               = isplain(thrift_type(typ))
 
 ##
 # base processor method
@@ -173,41 +173,43 @@ function read_container(p::TProtocol, val::T) where T<:TSTRUCT
 
     m = meta(T)
     @debug("struct meta", meta=m)
-    fillunset(val)
+    clear(val)
     while true
         (name, ttyp, id) = readFieldBegin(p)
         (ttyp == TType.STOP) && break
 
         attribs = m.numdict[Int(id)]
-        jtyp = julia_type(attribs, m)
+        jtyp = julia_type(attribs)
         fldname = attribs.fld
         if iscontainer(ttyp)
             if isdefined(val, fldname)
                 @debug("reading into already defined container field", jtyp, fldname)
-                read_container(p, jtyp, getfield(val, fldname))
+                read_container(p, getfield(val, fldname))
             else
                 @debug("setting into container field", jtyp, fldname)
-                setfield!(val, fldname, read_container(p, jtyp))
+                setproperty!(val, fldname, read_container(p, jtyp))
             end
         else
             @debug("setting field", jtyp, fldname)
-            setfield!(val, fldname, read(p, jtyp))
+            setproperty!(val, fldname, read(p, jtyp))
         end
-        fillset(val, fldname)
         readFieldEnd(p)
     end
     readStructEnd(p)
 
-    # populate defaults
+    # populate remaining with any defaults
+    setdefaultproperties!(val)
+end
+
+function setdefaultproperties!(val::T) where T<:TSTRUCT
+    m = meta(T)
     for attrib in m.ordered
         fldname = attrib.fld
-        if !isfilled(val, fldname) && !isempty(attrib.default)
+        if !hasproperty(val, fldname) && !isempty(attrib.default)
             default = attrib.default[1]
-            set_field!(val, fldname, deepcopy(default))
-            fillset(val, fldname)
+            setproperty!(val, fldname, deepcopy(default))
         end
     end
-
     val
 end
 
@@ -218,12 +220,12 @@ function write_container(p::TProtocol, val::T) where T<:TSTRUCT
     writeStructBegin(p, string(T))
 
     for attrib in m.ordered
-        if !isfilled(val, attrib.fld)
+        if !hasproperty(val, attrib.fld)
             m.symdict[attrib.fld].required && error("required field $(attrib.fld) not populated")
             continue
         end
         writeFieldBegin(p, string(attrib.fld), attrib.ttyp, attrib.fldnum)
-        fld = getfield(val, attrib.fld)
+        fld = getproperty(val, attrib.fld)
         if (attrib.ttyp == TType.STRING) && isa(fld, Vector{UInt8})
             write(p, fld, true)
         else
@@ -392,10 +394,188 @@ end
 
 
 ##
-# Exception types
-mutable struct TException <: Exception
-    message::AbstractString
+# Thrift Structure Metadata
+
+mutable struct ThriftMetaAttribs
+    fldnum::Int                     # the field number in the structure
+    fld::Symbol
+    ttyp::Int32                     # thrift type
+    jtype::Type                     # Julia type
+    required::Bool                  # required or optional
+    default::Vector                 # the default value, empty array if none is specified, first element is used if something is specified
+    elmeta::Vector                  # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
 end
+
+mutable struct ThriftMeta
+    jtype::Type
+    symdict::Dict{Symbol,ThriftMetaAttribs}
+    numdict::Dict{Int,ThriftMetaAttribs}
+    ordered::Vector{ThriftMetaAttribs}
+
+    ThriftMeta(jtype::Type, ordered::Vector{ThriftMetaAttribs}) = _setmeta(new(), jtype, ordered)
+end
+
+function _setmeta(meta::ThriftMeta, jtype::Type, ordered::Vector{ThriftMetaAttribs})
+    symdict = Dict{Symbol,ThriftMetaAttribs}()
+    numdict = Dict{Int,ThriftMetaAttribs}()
+    for attrib in ordered
+        symdict[attrib.fld] = numdict[attrib.fldnum] = attrib
+    end
+    meta.jtype = jtype
+    meta.symdict = symdict
+    meta.numdict = numdict
+    meta.ordered = ordered
+    meta
+end
+
+julia_type(fattr::ThriftMetaAttribs) = fattr.jtype
+
+meta(typ::Type) = meta(typ, Symbol[], Type[], Symbol[], Int[], Dict{Symbol,Any}())
+function meta(typ::Type, names::Vector{Symbol}, types::Vector{Type}, optional::Vector{Symbol}, numbers::Vector{Int}, defaults::Dict{Symbol,Any})
+    m = ThriftMeta(typ, ThriftMetaAttribs[])
+
+    attribs = ThriftMetaAttribs[]
+    for fldidx in 1:length(names)
+        fldtyp = types[fldidx]
+        fldttyp = thrift_type(fldtyp)
+        fldname = names[fldidx]
+        fldnum = Int(isempty(numbers) ? fldidx : numbers[fldidx])
+        fldrequired = !(fldname in optional)
+
+        elmeta = ThriftMeta[]
+        if fldttyp == TType.STRUCT
+            push!(elmeta, meta(fldtyp))
+        elseif fldttyp == TType.LIST
+            push!(elmeta, meta(fldtyp.parameters[1]))
+        elseif fldttyp == TType.SET
+            push!(elmeta, meta(fldtyp.parameters[1]))
+        elseif fldttyp == TType.MAP
+            push!(elmeta, meta(fldtyp.parameters[1]))   # key
+            push!(elmeta, meta(fldtyp.parameters[2]))   # value
+        end
+
+        default = haskey(defaults, fldname) ? Any[defaults[fldname]] : []
+
+        push!(attribs, ThriftMetaAttribs(fldnum, fldname, fldttyp, fldtyp, fldrequired, default, elmeta))
+    end
+    _setmeta(m, typ, attribs)
+    m
+end
+
+function show(io::IO, m::ThriftMeta)
+    println(io, "ThriftMeta for $(m.jtype)")
+    println(io, m.ordered)
+end
+
+@deprecate fillunset(obj) clear(obj)
+@deprecate isfilled(obj, fld) hasproperty(obj, fld)
+function isfilled(obj)
+    fill = keys(obj.values)
+    flds = obj.meta.ordered
+    for fld in flds
+        if fld.required
+            (fld.fld in fill) || (return false)
+            !isempty(fld.elmeta) && !isfilled(getproperty(obj, fld.fld)) && (return false)
+        end
+    end
+    true
+end
+
+##
+# utility methods
+function copy!(to::T, from::T) where T<:TMsg
+    clear(to)
+    for name in propertynames(from)
+        if hasproperty(from, name)
+            setproperty!(to, name, getproperty(from, name))
+        end
+    end
+    nothing
+end
+
+isinitialized(obj) = isfilled(obj)
+
+@deprecate set_field!(obj, fld, val) setproperty!(obj, fld, val)
+@deprecate get_field(obj, fld) getproperty(obj, fld)
+@deprecate has_field(obj, fld) hasproperty(obj, fld)
+
+propertynames(obj::TMsg) = collect(keys(obj.meta.symdict))
+hasproperty(obj::TMsg, fld::Symbol) = haskey(obj.values, fld)
+function setproperty!(obj::TMsg, fld::Symbol, val)
+    symdict = obj.meta.symdict
+    if fld in keys(symdict)
+        fldtype = symdict[fld].jtype
+        obj.values[fld] = isa(val, fldtype) ? val : convert(fldtype, val)
+    else
+        setfield!(obj, fld, val)
+    end
+end
+
+function clear(obj::TMsg)
+    empty!(obj.values)
+    nothing
+end
+
+function clear(obj::TMsg, fld::Symbol)
+    delete!(obj.values, fld)
+    nothing
+end
+
+function thriftbuild(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}()) where T
+    Base.depwarn("thriftbuild is deprecated; use constructor instead", :thriftbuild)
+    T(; nv...)
+end
+
+function enumstr(enumname, t::Int32)
+    T = typeof(enumname)
+    for name in fieldnames(T)
+        (getfield(enumname, name) == t) && (return string(name))
+    end
+    error("Invalid enum value $t for $T)")
+end
+
+
+##
+# Exception types
+"""
+Exception that must be thrown by application code on any unexpected error.
+"""
+mutable struct TException <: TMsg
+    meta::ThriftMeta
+    values::Dict{Symbol,Any}
+
+    function TException(; kwargs...)
+        obj = new(__meta__TException, Dict{Symbol,Any}())
+        values = obj.values
+        symdict = obj.meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtype
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+        end
+        Thrift.setdefaultproperties!(obj)
+        obj
+    end
+end
+
+const __meta__TException = meta(TException,
+    Symbol[:message],
+    Type[String],
+    Symbol[],
+    Int[],
+    Dict{Symbol,Any}()
+)
+
+function Base.getproperty(obj::TException, name::Symbol)
+    if name === :message
+        return (obj.values[name])::String
+    else
+        getfield(obj, name)
+    end
+end
+
+meta(::Type{TException}) = __meta__TException
 
 struct _enum_TApplicationExceptionTypes
     UNKNOWN::Int32
@@ -426,17 +606,50 @@ const _appex_msgs = [
     "Unsupported client type"
 ]
 
-mutable struct TApplicationException <: Exception
-    typ::Int32
-    message::TUTF8
+"""
+Exception thrown by Thrift.jl internals on any unexpected error.
+"""
+mutable struct TApplicationException <: TMsg
+    meta::ThriftMeta
+    values::Dict{Symbol,Any}
 
-    function TApplicationException(typ::Int32=ApplicationExceptionType.UNKNOWN, message::AbstractString="")
-        message = isempty(message) ? _appex_msgs[typ+1] : message
-        new(typ, message)
+    function TApplicationException(; kwargs...)
+        obj = new(__meta__TApplicationException, Dict{Symbol,Any}())
+        values = obj.values
+        symdict = obj.meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtype
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+        end
+        Thrift.setdefaultproperties!(obj)
+        obj
     end
 end
 
-meta(t::Type{TApplicationException}) = meta(t, Symbol[], [2,1], Dict{Symbol,Any}())
+const __meta__TApplicationException = meta(TApplicationException,
+    Symbol[:typ, :message],
+    Type[Int32, TUTF8],
+    Symbol[],
+    Int[],
+    Dict{Symbol,Any}(
+        :typ => ApplicationExceptionType.UNKNOWN,
+        :message => ""
+    )
+)
+
+function Base.getproperty(obj::TApplicationException, name::Symbol)
+    if name === :typ
+        return (obj.values[name])::Int32
+    elseif name === :message
+        return (obj.values[name])::TUTF8
+    else
+        getfield(obj, name)
+    end
+end
+
+meta(::Type{TApplicationException}) = __meta__TApplicationException
 
 
 ##
@@ -449,182 +662,3 @@ struct _enum_TMessageType
 end
 
 const MessageType = _enum_TMessageType(Int32(1), Int32(2), Int32(3), Int32(4))
-
-
-
-##
-# Thrift Structure Metadata
-
-mutable struct ThriftMetaAttribs
-    fldnum::Int                     # the field number in the structure
-    fld::Symbol
-    ttyp::Int32                     # thrift type
-    required::Bool                  # required or optional
-    default::Vector                 # the default value, empty array if none is specified, first element is used if something is specified
-    elmeta::Vector                  # the ThriftMeta of a struct or element/key-value types if this is a list, set or map
-end
-
-mutable struct ThriftMeta
-    jtype::Type
-    symdict::Dict{Symbol,ThriftMetaAttribs}
-    numdict::Dict{Int,ThriftMetaAttribs}
-    ordered::Vector{ThriftMetaAttribs}
-
-    ThriftMeta(jtype::Type, ordered::Vector{ThriftMetaAttribs}) = _setmeta(new(), jtype, ordered)
-end
-
-function _setmeta(meta::ThriftMeta, jtype::Type, ordered::Vector{ThriftMetaAttribs})
-    symdict = Dict{Symbol,ThriftMetaAttribs}()
-    numdict = Dict{Int,ThriftMetaAttribs}()
-    for attrib in ordered
-        symdict[attrib.fld] = numdict[attrib.fldnum] = attrib
-    end
-    meta.jtype = jtype
-    meta.symdict = symdict
-    meta.numdict = numdict
-    meta.ordered = ordered
-    meta
-end
-
-julia_type(fattr::ThriftMetaAttribs, m::ThriftMeta) = fieldtype(m.jtype, fattr.fld)
-
-const _metacache = Dict{Type, ThriftMeta}()
-const _fillcache = Dict{UInt, Vector{Symbol}}()
-
-meta(typ::Type) = meta(typ, Symbol[], Int[], Dict{Symbol,Any}())
-function meta(typ::Type, optional::Array, numbers::Array, defaults::Dict, cache::Bool=true)
-    d = Dict{Symbol,Any}()
-    for (k,v) in defaults
-        d[k] = v
-    end
-    meta(typ, convert(Vector{Symbol}, optional), convert(Vector{Int}, numbers), d, cache)
-end
-function meta(typ::Type, optional::Vector{Symbol}, numbers::Vector{Int}, defaults::Dict{Symbol,Any}, cache::Bool=true)
-    haskey(_metacache, typ) && return _metacache[typ]
-
-    m = ThriftMeta(typ, ThriftMetaAttribs[])
-    cache ? (_metacache[typ] = m) : m
-
-    attribs = ThriftMetaAttribs[]
-    names = fieldnames(typ)
-    types = fieldtypes(typ)
-    for fldidx in 1:length(names)
-        fldtyp = types[fldidx]
-        fldttyp = thrift_type(fldtyp)
-        fldname = names[fldidx]
-        fldnum = Int(isempty(numbers) ? fldidx : numbers[fldidx])
-        fldrequired = !(fldname in optional)
-
-        elmeta = ThriftMeta[]
-        if fldttyp == TType.STRUCT
-            push!(elmeta, meta(fldtyp))
-        elseif fldttyp == TType.LIST
-            push!(elmeta, meta(fldtyp.parameters[1]))
-        elseif fldttyp == TType.SET
-            push!(elmeta, meta(fldtyp.parameters[1]))
-        elseif fldttyp == TType.MAP
-            push!(elmeta, meta(fldtyp.parameters[1]))   # key
-            push!(elmeta, meta(fldtyp.parameters[2]))   # value
-        end
-
-        default = haskey(defaults, fldname) ? Any[defaults[fldname]] : []
-
-        push!(attribs, ThriftMetaAttribs(fldnum, fldname, fldttyp, fldrequired, default, elmeta))
-    end
-    _setmeta(m, typ, attribs)
-    m
-end
-
-function show(io::IO, m::ThriftMeta)
-    println(io, "ThriftMeta for $(m.jtype)")
-    println(io, m.ordered)
-end
-
-
-fillunset(obj) = (empty!(filled(obj)); nothing)
-function fillunset(obj, fld::Symbol)
-    fill = filled(obj)
-    idx = something(findfirst(isequal(fld), fill), 0)
-    (idx > 0) && splice!(fill, idx)
-    nothing
-end
-
-function fillset(obj, fld::Symbol)
-    fill = filled(obj)
-    idx = something(findfirst(isequal(fld), fill), 0)
-    (idx > 0) && return
-    push!(fill, fld)
-    nothing
-end
-
-function filled(obj)
-    oid = objectid(obj)
-    haskey(_fillcache, oid) && return _fillcache[oid]
-
-    fill = Symbol[]
-    for fldname in fieldnames(typeof(obj))
-        isdefined(obj, fldname) && push!(fill, fldname)
-    end
-    if !isimmutable(obj)
-        _fillcache[oid] = fill
-        finalizer(obj->delete!(_fillcache, objectid(obj)), obj)
-    end
-    fill
-end
-
-isfilled(obj, fld::Symbol) = (fld in filled(obj))
-function isfilled(obj)
-    fill = filled(obj)
-    flds = meta(typeof(obj)).ordered
-    for fld in flds
-        if fld.required
-            !(fld.fld in fill) && (return false)
-            (fld.elmeta != nothing) && !isfilled(getfield(obj, fld.fld)) && (return false)
-        end
-    end
-    true
-end
-
-
-##
-# utility methods
-function copy!(to::T, from::T) where T<:TMsg
-    fillunset(to)
-    for name in fieldnames(T)
-        if isfilled(from, name)
-            set_field!(to, name, getfield(from, name))
-        end
-    end
-    nothing
-end
-
-isinitialized(obj) = isfilled(obj)
-
-function set_field!(obj, fld::Symbol, val)
-    fldtyp = fieldtype(typeof(obj), fld)
-    setfield!(obj, fld, isa(val, fldtyp) ? val : convert(fldtyp, val))
-    fillset(obj, fld)
-    nothing
-end
-@deprecate set_field(obj, fld::Symbol, val) set_field!(obj, fld, val)
-
-get_field(obj, fld::Symbol) = isfilled(obj, fld) ? getfield(obj, fld) : error("uninitialized field $fld")
-clear = fillunset
-has_field(obj, fld::Symbol) = isfilled(obj, fld)
-
-function thriftbuild(::Type{T}, nv::Dict{Symbol}=Dict{Symbol,Any}()) where T
-    obj = T()
-    for (n,v) in nv
-        fldtyp = fieldtype(T, n)
-        set_field!(obj, n, isa(v, fldtyp) ? v : convert(fldtyp, v))
-    end
-    obj
-end
-
-function enumstr(enumname, t::Int32)
-    T = typeof(enumname)
-    for name in fieldnames(T)
-        (getfield(enumname, name) == t) && (return string(name))
-    end
-    error("Invalid enum value $t for $T)")
-end

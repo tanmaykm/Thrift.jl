@@ -380,24 +380,23 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 	} else if (type->is_map()) {
 	    t_type* ktype = ((t_map*)type)->get_key_type();
 	    t_type* vtype = ((t_map*)type)->get_val_type();
-	    out << "Dict(" << endl;
+	    out << "Dict(";
 	    indent_up();
 	    const map<t_const_value*, t_const_value*>& val = value->get_map();
 	    map<t_const_value*, t_const_value*>::const_iterator v_iter;
 	    bool first = true;
 	    for (v_iter = val.begin(); v_iter != val.end(); ++v_iter) {
-		    if (first) {
+			if (first) {
 		    	first = false;
 		    } else {
-		    	out << "," << endl;
+				out << ", ";
 		    }
-	    	out << indent();
 	    	out << render_const_value(ktype, v_iter->first, true);
 	    	out << " => ";
 	    	out << render_const_value(vtype, v_iter->second, true);
 	    }
 	    indent_down();
-	    indent(out) << endl << ")";
+	    indent(out) << ")";
 	} else if (type->is_list() || type->is_set()) {
 	    t_type* etype;
 	    if (type->is_list()) {
@@ -419,11 +418,10 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 		    } else {
 		    	out << ", ";
 		    }
-		    out << indent();
 		    out << render_const_value(etype, *v_iter, false);
 	    }
 	    indent_down();
-	    indent(out) << endl << "]";
+	    indent(out) << "]";
 	    if (type->is_set()) {
 	      out << ")";
 	    }
@@ -463,57 +461,99 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 
 	indent(out) << endl << "mutable struct " << struct_name;
 
+	out << " <: Thrift.TMsg";
 	if (is_exception) {
-		out << " <: Exception";
+		out << " # Exception";
 	}
-    else {
-		out << " <: Thrift.TMsg";
-    }
 	out << endl;
 	indent_up();
 
+	indent(out) << "meta::ThriftMeta" << endl;
+	indent(out) << "values::Dict{Symbol,Any}" << endl;
+	indent(out) << endl;
+	indent(out) << "function " << struct_name << "(; kwargs...)" << endl;
+	indent_up();
+	indent(out) << "obj = new(__meta__" << struct_name << ", Dict{Symbol,Any}())" << endl;
+	indent(out) << "values = obj.values" << endl;
+	indent(out) << "symdict = obj.meta.symdict" << endl;
+	indent(out) << "for nv in kwargs" << endl;
+	indent_up();
+	indent(out) << "fldname, fldval = nv" << endl;
+	indent(out) << "fldtype = symdict[fldname].jtype" << endl;
+	indent(out) << "(fldname in keys(symdict)) || error(string(typeof(obj), \" has no field with name \", fldname))" << endl;
+	indent(out) << "values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)" << endl;
+	indent_down();
+	indent(out) << "end" << endl;
+	indent(out) << "Thrift.setdefaultproperties!(obj)" << endl;
+	indent(out) << "obj" << endl;
+	indent_down();
+	indent(out) << "end" << endl;
+	indent_down();
+	out << "end # mutable struct " << struct_name << endl;
+
+	std::ostringstream fldall;
+	std::ostringstream fldalltypes;
 	std::ostringstream fldoptional;
 	std::ostringstream fldnums;
 	std::ostringstream flddefaults;
-	bool need_meta = false;
+	std::ostringstream getconditions;
 	bool need_fldnums = false;
 	int default_fld_num = 1;
 	for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 		t_field* fld= (*m_iter);
 		string fld_name = chk_keyword(fld->get_name());
+		string fld_type = julia_type(fld->get_type());
 
-		indent(out) << fld_name << "::" << julia_type(fld->get_type()) << endl;
+		if(!fldall.str().empty()) (fldall << ",");
+		fldall << ":" << fld_name;
+
+		if(!fldalltypes.str().empty()) (fldalltypes << ",");
+		fldalltypes << fld_type;
+
+		if(getconditions.str().empty()) {
+			getconditions << "  if name === ";
+		}
+		else {
+			getconditions << "  elseif name === ";
+		}
+		getconditions << ":" << fld_name << endl << "    return (obj.values[name])::" << fld_type << endl;
+
 		if (fld->get_req() == t_field::T_OPTIONAL) {
-			need_meta = true;
 			if(!fldoptional.str().empty()) (fldoptional << ",");
 			fldoptional << ":" << fld_name;
 		}
 
 		if(fld->get_key() != default_fld_num) {
-			need_meta = need_fldnums = true;
+			need_fldnums = true;
 		}
 		if(!fldnums.str().empty()) (fldnums << ",");
 		fldnums << fld->get_key();
 
 		if(fld->get_value() != NULL) {
-			need_meta = true;
 			t_type* type = get_true_type(fld->get_type());
 			if(!flddefaults.str().empty()) (flddefaults << ", ");
 			flddefaults << ":" << fld_name << " => " << render_const_value(type, fld->get_value(), true);
 		}
 		default_fld_num++;
 	}
-	if(default_fld_num > 1) {
-		indent(out) << struct_name << "() = (o=new(); fillunset(o); o)" << endl;
-	}
-	indent_down();
-	out << "end # mutable struct " << struct_name << endl;
 
-	if(need_meta) {
-		string defaults = flddefaults.str().empty() ? "Dict{Symbol,Any}()" : ("Dict{Symbol,Any}(" + flddefaults.str() + ")");
-		string fldns = need_fldnums ? fldnums.str() : "";
-		out << "meta(t::Type{" << struct_name << "}) = meta(t, Symbol[" << fldoptional.str() << "], Int[" << fldns << "], " << defaults << ")" << endl;
+	string fldns = need_fldnums ? fldnums.str() : "";
+	out << endl << "const __meta__" << struct_name << " = meta(" << struct_name << "," << endl;
+	indent_up();
+	indent(out) << "Symbol[" << fldall.str() << "]," << endl;
+	indent(out) << "Type[" << fldalltypes.str() << "]," << endl;
+	indent(out) << "Symbol[" << fldoptional.str() << "]," << endl;
+	indent(out) << "Int[" << fldns << "]," << endl;
+	indent(out) << "Dict{Symbol,Any}(" << flddefaults.str() << ")" << endl;
+	indent_down();
+	out << ")" << endl;
+
+	if(!getconditions.str().empty()) {
+		getconditions << "  else" << endl << "    getfield(obj, name)" << endl << "  end";
+		out << endl << "function Base.getproperty(obj::" << struct_name << ", name::Symbol)" << endl << getconditions.str() << endl << "end" << endl;
 	}
+
+	out << endl << "meta(::Type{" << struct_name << "}) = __meta__" << struct_name << endl << endl;
 }
 
 void t_jl_generator::add_to_module(t_service* tservice) {
@@ -600,7 +640,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 				indent(f_service_) << "return" << endl;
 			}
 			else if(!ttype->is_void()) {
-				indent(f_service_) << "return " << fname << "_result(result)" << endl;
+				indent(f_service_) << "return " << fname << "_result(;success=result)" << endl;
 			}
 			else {
 				indent(f_service_) << "return " << fname << "_result()" << endl;
@@ -619,7 +659,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 				vector<t_field*>::const_iterator x_iter;
 				for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 					t_field* fld= (*x_iter);
-					indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (set_field!(exret, :" << chk_keyword(fld->get_name()) << ", ex); return exret)" << endl;
+					indent(f_service_) << "isa(ex, " << julia_type(fld->get_type()) << ") && (exret." << chk_keyword(fld->get_name()) << " = ex; return exret)" << endl;
 				}
 
 				indent(f_service_) << "rethrow()" << endl;
@@ -630,7 +670,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			indent(f_service_) << "end #function _" << fname << endl;
 		}
 		else if(!ttype->is_void() && !oneway) {
-			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = " << fname << "_result(" << fname << "(";
+			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = " << fname << "_result(; success=" << fname << "(";
 
 			const vector<t_field*>& members = arglist->get_members();
 			vector<t_field*>::const_iterator m_iter;
@@ -767,7 +807,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 			t_field* fld= (*m_iter);
 			string fld_name = chk_keyword(fld->get_name());
-			indent(f_service_) << "Thrift.set_field!(inp, :" << fld_name << ", " << fld_name << ")" << endl;
+			indent(f_service_) << "inp." << fld_name << " = " << fld_name << endl;
 		}
 
 		indent(f_service_) << "Thrift.write(p, inp)" << endl;
@@ -780,7 +820,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 			indent(f_service_) << "(mtype == Thrift.MessageType.EXCEPTION) && throw(Thrift.read(p, Thrift.TApplicationException()))" << endl;
 			indent(f_service_) << "outp = Thrift.read(p, " << fname << "_result())" << endl;
 			indent(f_service_) << "Thrift.readMessageEnd(p)" << endl;
-			indent(f_service_) << "(rseqid != c.seqid) && throw(Thrift.TApplicationException(ApplicationExceptionType.BAD_SEQUENCE_ID, \"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
+			indent(f_service_) << "(rseqid != c.seqid) && throw(Thrift.TApplicationException(; typ=ApplicationExceptionType.BAD_SEQUENCE_ID, message=\"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
 
 			if(has_xceptions) {
 				const vector<t_field*>& xmembers = xceptions->get_members();
@@ -788,7 +828,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 				for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
 					t_field* fld= (*x_iter);
 					string fld_name = chk_keyword(fld->get_name());
-					indent(f_service_) << "Thrift.has_field(outp, :" << fld_name << ") && throw(Thrift.get_field(outp, :" << fld_name << "))" << endl;
+					indent(f_service_) << "hasproperty(outp, :" << fld_name << ") && throw(outp." << fld_name << ")" << endl;
 				}
 			}
 		}
@@ -797,8 +837,8 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 			indent(f_service_) << "nothing" << endl;
 		}
 		else {
-			indent(f_service_) << "Thrift.has_field(outp, :success) && (return Thrift.get_field(outp, :success))" << endl;
-			indent(f_service_) << "throw(Thrift.TApplicationException(Thrift.ApplicationExceptionType.MISSING_RESULT, \"retrieve failed: unknown result\"))" << endl;
+			indent(f_service_) << "hasproperty(outp, :success) && (return outp.success)" << endl;
+			indent(f_service_) << "throw(Thrift.TApplicationException(; typ=Thrift.ApplicationExceptionType.MISSING_RESULT, message=\"retrieve failed: unknown result\"))" << endl;
 		}
 		indent_down();
 		f_service_ << "end # function " << fname << endl << endl;
@@ -825,48 +865,27 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 			continue;
 		}
 
-		indent(f_service_) << "mutable struct " << function_name << "_result" << endl;
-		indent_up();
+		t_struct* result_success = new t_struct(program_, function_name + "_result");
+		t_field* success_field = NULL;
 		if(!ttype->is_void()) {
-			indent(f_service_) << "success::" << julia_type(ttype) << endl;
-		}
-
-		bool first = true;
-		std::ostringstream result_fld_names;
-		std::ostringstream result_fld_ids;
-		if(!ttype->is_void()) {
-			result_fld_names << ":success";
-			result_fld_ids << "0";
-			first = false;
+			success_field = new t_field(ttype, "success");
+			result_success->append(success_field);
 		}
 		if(has_xceptions) {
 			const vector<t_field*>& xmembers = xceptions->get_members();
 			vector<t_field*>::const_iterator x_iter;
 			int xid = 1;
 			for (x_iter = xmembers.begin(); x_iter != xmembers.end(); ++x_iter) {
-				t_field* fld= (*x_iter);
-				string fld_name = chk_keyword(fld->get_name());
-				if(first) {
-					first = false;
-				}
-				else {
-					result_fld_names << ", ";
-					result_fld_ids << ", ";
-				}
-				indent(f_service_) << fld_name << "::" << julia_type(fld->get_type()) << endl;
-				result_fld_names << ":" << fld_name;
-				result_fld_ids << xid++;
+				t_field* fld = (*x_iter);
+				result_success->append(fld);
 			}
 		}
-
-		if(!ttype->is_void() || has_xceptions) {
-			indent(f_service_) << function_name << "_result() = (o=new(); fillunset(o); o)" << endl;
-			if(!ttype->is_void()) indent(f_service_) << function_name << "_result(success) = (o=new(); fillset(o, :success); o.success=success; o)" << endl;
+		generate_jl_struct(f_service_, result_success, false);
+		f_service_ << endl;
+		if(success_field != NULL) {
+			free(success_field);
 		}
-
-		indent_down();
-		indent(f_service_) << "end # mutable struct " << function_name << "_result" << endl;
-		indent(f_service_) << "meta(t::Type{" << function_name << "_result}) = meta(t, Symbol[" << result_fld_names.str() << "], Int[" << result_fld_ids.str() << "], Dict{Symbol,Any}())" << endl << endl;
+		free(result_success);
 	}
 }
 
