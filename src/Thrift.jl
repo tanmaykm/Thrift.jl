@@ -5,7 +5,7 @@ using Sockets
 using ThriftJuliaCompiler_jll
 
 import Sockets: TCPServer, listen, accept
-import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!
+import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!, hasproperty, getproperty, setproperty!, propertynames
 
 export open, close, isopen, read, read!, write, flush, skip, listen, accept, show, copy!
 
@@ -16,7 +16,7 @@ export writeMessageBegin, writeMessageEnd, writeStructBegin, writeStructEnd, wri
 export readMessageBegin, readMessageEnd, readStructBegin, readStructEnd, readFieldBegin, readFieldEnd, readMapBegin, readMapEnd, readListBegin, readListEnd, readSetBegin, readSetEnd, readBool, readByte, readI16, readI32, readI64, readDouble, readString
 export ApplicationExceptionType, MessageType, TException, TApplicationException
 export ThriftMetaAttribs, ThriftMeta, meta
-export isinitialized, set_field, set_field!, get_field, clear, has_field, fillunset, fillset, filled, isfilled, thriftbuild, enumstr
+export isinitialized, set_field!, get_field, clear, has_field, fillunset, isfilled, thriftbuild, enumstr
 
 # from transports.jl
 export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport, TFileTransport

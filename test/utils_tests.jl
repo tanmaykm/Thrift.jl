@@ -2,6 +2,7 @@ module ThriftUtilsTests
 
 using Thrift
 using Test
+import Thrift: meta
 
 struct _enum_TestEnum
     BOOLEAN::Int32
@@ -16,67 +17,169 @@ end
 const TestEnum = _enum_TestEnum(Int32(0), Int32(1), Int32(2), Int32(3), Int32(4), Int32(5), Int32(6), Int32(7))
 
 function test_enum()
-    println("    enum...")
-    @test enumstr(TestEnum, TestEnum.BOOLEAN) == "BOOLEAN"
-    @test_throws ErrorException enumstr(TestEnum, Int32(11))
+    @testset "enum" begin
+        @test enumstr(TestEnum, TestEnum.BOOLEAN) == "BOOLEAN"
+        @test_throws ErrorException enumstr(TestEnum, Int32(11))
+    end
 end
 
 function test_container_check()
-    println("    iscontainer/isplain...")
-    for T in (Bool, UInt8, Float64, Int16, Int32, Int64, Vector{UInt8}, String)
-        @test Thrift.isplain(T)
-        @test !Thrift.iscontainer(T)
-    end
-    for T in (Dict, Set, Any)
-        @test !Thrift.isplain(T)
-        @test Thrift.iscontainer(T)
+    @testset "iscontainer/isplain" begin
+        for T in (Bool, UInt8, Float64, Int16, Int32, Int64, Vector{UInt8}, String)
+            @test Thrift.isplain(T)
+            @test !Thrift.iscontainer(T)
+        end
+        for T in (Dict, Set, Any)
+            @test !Thrift.isplain(T)
+            @test Thrift.iscontainer(T)
+        end
     end
 end
 
 mutable struct TestMetaAllTypes <: Thrift.TMsg
-  bool_val::Bool
-  byte_val::UInt8
-  i16_val::Int16
-  i32_val::Int32
-  i64_val::Int64
-  double_val::Float64
-  string_val::String
-  TestMetaAllTypes() = (o=new(); fillunset(o); o)
-end # mutable struct AllTypes
+    meta::ThriftMeta
+    values::Dict{Symbol,Any}
+
+    function TestMetaAllTypes(; kwargs...)
+        obj = new(__meta__TestMetaAllTypes, Dict{Symbol,Any}())
+        values = obj.values
+        symdict = obj.meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtype
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+        end
+        Thrift.setdefaultproperties!(obj)
+        obj
+    end
+end # mutable struct TestMetaAllTypes
+
+const __meta__TestMetaAllTypes = meta(TestMetaAllTypes,
+    Symbol[:bool_val,:byte_val,:i16_val,:i32_val,:i64_val,:double_val,:string_val],
+    Type[Bool, UInt8, Int16, Int32, Int64, Float64, String],
+    Symbol[],
+    Int[],
+    Dict{Symbol,Any}()
+)
+
+function Base.getproperty(obj::TestMetaAllTypes, name::Symbol)
+    if name === :bool_val
+        return (obj.values[name])::Bool
+    elseif name === :byte_val
+        return (obj.values[name])::UInt8
+    elseif name === :i16_val
+        return (obj.values[name])::Int16
+    elseif name === :i32_val
+        return (obj.values[name])::Int32
+    elseif name === :i64_val
+        return (obj.values[name])::Int64
+    elseif name === :double_val
+        return (obj.values[name])::Float64
+    elseif name === :string_val
+        return (obj.values[name])::String
+    else
+        getfield(obj, name)
+    end
+end
+
+meta(::Type{TestMetaAllTypes}) = __meta__TestMetaAllTypes
+
+
+mutable struct AllTypesDefault <: Thrift.TMsg
+    meta::ThriftMeta
+    values::Dict{Symbol,Any}
+
+    function AllTypesDefault(; kwargs...)
+        obj = new(__meta__AllTypesDefault, Dict{Symbol,Any}())
+        values = obj.values
+        symdict = obj.meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtype
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+        end
+        Thrift.setdefaultproperties!(obj)
+        obj
+    end
+end # mutable struct AllTypesDefault
+
+const __meta__AllTypesDefault = meta(AllTypesDefault,
+  Symbol[:bool_val,:byte_val,:i16_val,:i32_val,:i64_val,:double_val,:string_val,:map_val,:list_val,:set_val],
+  Type[Bool,UInt8,Int16,Int32,Int64,Float64,String,Dict{Int32,Int16},Vector{Int16},Set{UInt8}],
+  Symbol[:bool_val,:byte_val,:i16_val,:i32_val,:i64_val,:double_val,:string_val,:map_val,:list_val,:set_val],
+  Int[],
+  Dict{Symbol,Any}(:bool_val => true, :byte_val => UInt8(1), :i16_val => Int16(10), :i32_val => Int32(20), :i64_val => Int64(30), :double_val => Float64(10.1), :string_val => "hello world", :map_val => Dict(Int32(1) => Int16(10), Int32(2) => Int16(20)), :list_val => Int16[1, 2, 3], :set_val => union!(Set{UInt8}(), UInt8[3, 4, 5]))
+)
+
+function Base.getproperty(obj::AllTypesDefault, name::Symbol)
+    if name === :bool_val
+        return (obj.values[name])::Bool
+    elseif name === :byte_val
+        return (obj.values[name])::UInt8
+    elseif name === :i16_val
+        return (obj.values[name])::Int16
+    elseif name === :i32_val
+        return (obj.values[name])::Int32
+    elseif name === :i64_val
+        return (obj.values[name])::Int64
+    elseif name === :double_val
+        return (obj.values[name])::Float64
+    elseif name === :string_val
+        return (obj.values[name])::String
+    elseif name === :map_val
+        return (obj.values[name])::Dict{Int32,Int16}
+    elseif name === :list_val
+        return (obj.values[name])::Vector{Int16}
+    elseif name === :set_val
+        return (obj.values[name])::Set{UInt8}
+    else
+        getfield(obj, name)
+    end
+end
+
+meta(::Type{AllTypesDefault}) = __meta__AllTypesDefault
 
 function test_meta()
-    @test !Thrift.isplain(TestMetaAllTypes)
-    @test Thrift.iscontainer(TestMetaAllTypes)
+    @testset "test metadata" begin
+        @test !Thrift.isplain(TestMetaAllTypes)
+        @test Thrift.iscontainer(TestMetaAllTypes)
 
-    types = TestMetaAllTypes()
-    @test !isfilled(types)
-    @test !isfilled(types, :bool_val)
+        types = TestMetaAllTypes()
+        @test !isfilled(types)
+        @test !hasproperty(types, :bool_val)
 
-    set_field!(types, :bool_val, true)
-    @test isfilled(types, :bool_val)
-    @test !isfilled(types)
+        types.bool_val = true
+        @test hasproperty(types, :bool_val)
+        @test !isfilled(types)
 
-    set_field!(types, :byte_val,    UInt8(1))
-    set_field!(types, :i16_val,     Int16(1))
-    set_field!(types, :i32_val,     Int32(1))
-    set_field!(types, :i64_val,     Int64(1))
-    set_field!(types, :double_val,  1.1)
-    set_field!(types, :string_val,  "1")
-    @test isfilled(types)
-    @test isinitialized(types)
+        types.byte_val = 1
+        types.i16_val = 1
+        types.i32_val = 1
+        types.i64_val = 1
+        types.double_val = 1.1
+        types.string_val = "1"
 
-    types2 = TestMetaAllTypes()
-    @test !isfilled(types2)
-    copy!(types2, types)
-    @test isfilled(types2)
+        @test isfilled(types)
+        @test isinitialized(types)
+
+        types2 = TestMetaAllTypes()
+        @test !isfilled(types2)
+        copy!(types2, types)
+        @test isfilled(types2)
+
+        types3 = AllTypesDefault()
+        @test isfilled(types3)
+    end
 
     nothing
 end
 
-println("Testing utils functions...")
-test_enum()
-test_container_check()
-test_meta()
-println("passed.")
+@testset "utility functions" begin
+    test_enum()
+    test_container_check()
+    test_meta()
+end
 
 end
