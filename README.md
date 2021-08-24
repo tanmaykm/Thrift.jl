@@ -1,7 +1,10 @@
 # Thrift.jl
 
-[![Build Status](https://travis-ci.org/tanmaykm/Thrift.jl.png)](https://travis-ci.org/tanmaykm/Thrift.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/56l7lbwk5fwbtnoo/branch/master?svg=true)](https://ci.appveyor.com/project/tanmaykm/thrift-jl/branch/master)
+[![Build Status](https://github.com/tanmaykm/Thrift.jl/workflows/CI/badge.svg)](https://github.com/tanmaykm/Thrift.jl/actions?query=workflow%3ACI+branch%3Amaster)
+
+AppVeyor: [![Build Status](https://ci.appveyor.com/api/projects/status/github/tanmaykm/Thrift.jl?branch=master&svg=true)](https://ci.appveyor.com/project/tanmaykm/thrift-jl/branch/master)
+
+[![Coverage Status](https://coveralls.io/repos/tanmaykm/Thrift.jl/badge.svg?branch=master)](https://coveralls.io/r/tanmaykm/Thrift.jl?branch=master)
 
 [**Apache Thrift**](http://thrift.apache.org/) is a lightweight, language-independent software stack with an associated code generation mechanism for RPC.
 
