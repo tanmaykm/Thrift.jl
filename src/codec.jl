@@ -62,7 +62,6 @@ function _write_zigzag(io::TIO, x::T) where T <: Integer
 end
 
 function _read_zigzag(io::TIO, typ::Type{T}) where T <: Integer
-    zx = _read_uleb(io, UInt64)
-    # result is positive if zx is even
-    convert(typ, iseven(zx) ? (zx >>> 1) : -((zx+1) >>> 1))
+    zx = convert(Int64, _read_uleb(io, UInt64))
+    convert(typ, xor((zx >>> 1), -(zx & Int64(1))))
 end

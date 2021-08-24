@@ -176,10 +176,33 @@ function test_meta()
     nothing
 end
 
+function test_zigzag()
+    testcases = [
+        0 => (nbytes=1, encval=0),
+        -1 => (nbytes=1, encval=1),
+        1 => (nbytes=1, encval=2),
+        -2 => (nbytes=1, encval=3),
+        2147483647 => (nbytes=5, encval=4294967294),
+        -2147483648 => (nbytes=5, encval=4294967295)
+    ]
+
+    for T in (Int64, Int32)
+        iob = PipeBuffer()
+        for kv in testcases
+            @test Thrift._write_zigzag(iob, T(kv[1])) == kv[2].nbytes
+        end
+        for kv in testcases
+            read_val = Thrift._read_zigzag(iob, T)
+            @test read_val === T(kv[1])
+        end
+    end
+end
+
 @testset "utility functions" begin
     test_enum()
     test_container_check()
     test_meta()
+    test_zigzag()
 end
 
 end
