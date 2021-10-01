@@ -67,7 +67,7 @@ public:
 	 */
 	std::string render_const_value(t_type* type, t_const_value* value, bool with_conversion);
 	string julia_type(t_type *type);
-	void generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception);
+	void generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception, string suffix="");
 	std::string jl_autogen_comment();
 	std::string jl_imports();
 	void generate_module_begin();
@@ -454,10 +454,10 @@ void t_jl_generator::generate_xception(t_struct* txception) {
 /**
  * Generates a Julia composite type or exception type
  */
-void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception) {
+void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception, string suffix /*=""*/) {
 	const vector<t_field*>& members = tstruct->get_members();
 	vector<t_field*>::const_iterator m_iter;
-	string struct_name = chk_keyword(tstruct->get_name());
+	string struct_name = chk_keyword(tstruct->get_name()) + suffix;
 
 	indent(out) << endl << "mutable struct " << struct_name;
 
@@ -584,9 +584,10 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 	for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
 		t_function* tfunction = (*f_iter);
 		string fname = chk_keyword(tfunction->get_name());
-		string result_type = tfunction->is_oneway() ? "Nothing" : (fname + "_result");
+		string result_type = tfunction->is_oneway() ? "Nothing" : (fname + "_result_" + service_name_);
+		string args_type = (fname + "_args_" + service_name_);
 
-		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << fname << "_args, " << result_type << "))" << endl;
+		indent(f_service_) << "handle(p.tp, ThriftHandler(\"" << fname << "\", _" << fname << ", " << args_type << ", " << result_type << "))" << endl;
 	}
 
 	t_service* extends_service = tservice->get_extends();
@@ -609,9 +610,11 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
 		bool oneway = tfunction->is_oneway();
+		string args_type = (fname + "_args_" + service_name_);
+		string result_type = tfunction->is_oneway() ? "Nothing" : (fname + "_result_" + service_name_);
 
 		if(has_xceptions) {
-			indent(f_service_) << "function _" << fname << "(inp::" << fname << "_args)" << endl;
+			indent(f_service_) << "function _" << fname << "(inp::" << args_type << ")" << endl;
 			indent_up();
 			indent(f_service_) << "try" << endl;
 			indent_up();
@@ -640,10 +643,10 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 				indent(f_service_) << "return" << endl;
 			}
 			else if(!ttype->is_void()) {
-				indent(f_service_) << "return " << fname << "_result(;success=result)" << endl;
+				indent(f_service_) << "return " << result_type << "(;success=result)" << endl;
 			}
 			else {
-				indent(f_service_) << "return " << fname << "_result()" << endl;
+				indent(f_service_) << "return " << result_type << "()" << endl;
 			}
 			indent_down();
 			indent(f_service_) << "catch ex" << endl;
@@ -653,7 +656,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 				indent(f_service_) << "// ignore exceptions in oneway functions" << endl;
 			}
 			else {
-				indent(f_service_) << "exret = " << fname << "_result()" << endl;
+				indent(f_service_) << "exret = " << result_type << "()" << endl;
 
 				const vector<t_field*>& xmembers = xceptions->get_members();
 				vector<t_field*>::const_iterator x_iter;
@@ -670,7 +673,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			indent(f_service_) << "end #function _" << fname << endl;
 		}
 		else if(!ttype->is_void() && !oneway) {
-			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = " << fname << "_result(; success=" << fname << "(";
+			indent(f_service_) << "_" << fname << "(inp::" << args_type << ") = " << result_type << "(; success=" << fname << "(";
 
 			const vector<t_field*>& members = arglist->get_members();
 			vector<t_field*>::const_iterator m_iter;
@@ -687,7 +690,7 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 			f_service_ << "))" << endl;
 		}
 		else if(!ttype->is_void() && oneway) {
-			indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(";
+			indent(f_service_) << "_" << fname << "(inp::" << args_type << ") = (" << fname << "(";
 
 			const vector<t_field*>& members = arglist->get_members();
 			vector<t_field*>::const_iterator m_iter;
@@ -705,10 +708,10 @@ void t_jl_generator::generate_service_processor(t_service* tservice) {
 		}
 		else {
 			if(oneway) {
-				indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << "nothing)" << endl;
+				indent(f_service_) << "_" << fname << "(inp::" << args_type << ") = (" << fname << "(); " << "nothing)" << endl;
 			}
 			else {
-				indent(f_service_) << "_" << fname << "(inp::" << fname << "_args) = (" << fname << "(); " << fname << "_result())" << endl;
+				indent(f_service_) << "_" << fname << "(inp::" << args_type << ") = (" << fname << "(); " << result_type << "())" << endl;
 			}
 		}
 	}
@@ -786,6 +789,8 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		string fname = chk_keyword(tfunction->get_name());
 		t_struct* xceptions = tfunction->get_xceptions();
 		bool has_xceptions = !xceptions->get_members().empty();
+		string args_type = (fname + "_args_" + service_name_);
+		string result_type = (fname + "_result_" + service_name_);
 
 		f_service_ << "# Client callable method for " << fname << endl;
 		f_service_ << "function " << fname << "(c::" << service_name_client << "Base";
@@ -802,7 +807,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		indent(f_service_) << "p = c.p" << endl;
 		indent(f_service_) << "c.seqid = (c.seqid < (2^31-1)) ? (c.seqid+1) : 0" << endl;
 		indent(f_service_) << "Thrift.writeMessageBegin(p, \"" << fname << "\", Thrift.MessageType." << (oneway ? "ONEWAY" : "CALL") << ", c.seqid)" << endl;
-		indent(f_service_) << "inp = " << fname << "_args()" << endl;
+		indent(f_service_) << "inp = " << args_type << "()" << endl;
 
 		for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
 			t_field* fld= (*m_iter);
@@ -818,7 +823,7 @@ void t_jl_generator::generate_service_client(t_service* tservice) {
 		if(!oneway) {
 			indent(f_service_) << "(fname, mtype, rseqid) = Thrift.readMessageBegin(p)" << endl;
 			indent(f_service_) << "(mtype == Thrift.MessageType.EXCEPTION) && throw(Thrift.read(p, Thrift.TApplicationException()))" << endl;
-			indent(f_service_) << "outp = Thrift.read(p, " << fname << "_result())" << endl;
+			indent(f_service_) << "outp = Thrift.read(p, " << result_type << "())" << endl;
 			indent(f_service_) << "Thrift.readMessageEnd(p)" << endl;
 			indent(f_service_) << "(rseqid != c.seqid) && throw(Thrift.TApplicationException(; typ=ApplicationExceptionType.BAD_SEQUENCE_ID, message=\"response sequence id $rseqid did not match request ($(c.seqid))\"))" << endl;
 
@@ -858,7 +863,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 		bool has_xceptions = !xceptions->get_members().empty();
 
 		indent(f_service_) << "# types encapsulating arguments and return values of method " << function_name << endl;
-		generate_jl_struct(f_service_, arglist, false);
+		generate_jl_struct(f_service_, arglist, false, "_" + service_name_);
 		f_service_ << endl;
 
 		if(tfunction->is_oneway()) {
@@ -880,7 +885,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 				result_success->append(fld);
 			}
 		}
-		generate_jl_struct(f_service_, result_success, false);
+		generate_jl_struct(f_service_, result_success, false, "_" + service_name_);
 		f_service_ << endl;
 		if(success_field != NULL) {
 			free(success_field);
