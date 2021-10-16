@@ -1,6 +1,6 @@
 name = "Thrift"
 uuid = "8d9c9c80-f77e-5080-9541-c6f69d204e22"
-version = "0.8.2"
+version = "0.8.3"
 
 [deps]
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
