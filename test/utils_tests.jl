@@ -3,6 +3,7 @@ module ThriftUtilsTests
 using Thrift
 using Test
 import Thrift: meta
+using Base.Threads
 
 struct _enum_TestEnum
     BOOLEAN::Int32
@@ -176,6 +177,27 @@ function test_meta()
     nothing
 end
 
+function test_parallel_readwrite()
+    types = TestMetaAllTypes()
+    types.bool_val = true
+    types.byte_val = 1
+    types.i16_val = 1
+    types.i32_val = 1
+    types.i64_val = 1
+    types.double_val = 1.1
+    types.string_val = "1"
+
+    iob = IOBuffer()
+    transport = TFileTransport(iob)
+    Thrift.write(Thrift.TCompactProtocol(transport), types)
+    transport = TFileTransport(IOBuffer(take!(iob)))
+    types_read = Thrift.read(Thrift.TCompactProtocol(transport), TestMetaAllTypes)
+
+    for name in propertynames(types)
+        @test getproperty(types_read, name) == getproperty(types, name)
+    end
+end
+
 function test_zigzag()
     testcases = [
         0 => (nbytes=1, encval=0),
@@ -203,6 +225,18 @@ end
     test_container_check()
     test_meta()
     test_zigzag()
+end
+
+@testset "parallel read write" begin
+    Threads.@threads for idx in 1:10
+        test_parallel_readwrite()
+    end
+
+    @sync begin
+        for idx in 1:10
+            @async test_parallel_readwrite()
+        end
+    end
 end
 
 end
