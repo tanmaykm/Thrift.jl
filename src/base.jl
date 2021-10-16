@@ -228,6 +228,8 @@ function write_container(p::TProtocol, val::T) where T<:TSTRUCT
         fld = getproperty(val, attrib.fld)
         if (attrib.ttyp == TType.STRING) && isa(fld, Vector{UInt8})
             write(p, fld, true)
+        elseif attrib.ttyp == TType.BOOL
+            writeBool(p, fld)
         else
             write(p, fld)
         end
@@ -479,6 +481,9 @@ function isfilled(obj)
         end
     end
     true
+end
+function isfilled(vec::Vector{T}) where T<:TMsg
+    isempty(vec) || all(isfilled.(vec))
 end
 
 ##
