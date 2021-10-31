@@ -19,7 +19,7 @@ export ThriftMetaAttribs, ThriftMeta, meta
 export isinitialized, set_field!, get_field, clear, has_field, fillunset, isfilled, thriftbuild, enumstr
 
 # from transports.jl
-export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport, TFileTransport
+export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport, TFileTransport, THeaderTransport
 export TransportExceptionTypes, TTransportException
 
 # from sasl.jl

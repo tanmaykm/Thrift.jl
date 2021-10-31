@@ -21,6 +21,7 @@ function serve_accepted(client::TTransport, s::TServerBase)
     catch ex
         if !isa(ex, EOFError)
             @error("exception serving request", exception=(ex, catch_backtrace()))
+            showerror(stdout, ex, catch_backtrace())
         end
     end
     close(itrans)

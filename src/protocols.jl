@@ -23,6 +23,7 @@ end
 const BINARY_VERSION_MASK = 0xffff0000
 const BINARY_VERSION_1 = 0x80010000
 const BINARY_TYPE_MASK = 0x000000ff
+const BINARY_PROTOCOL_ID = 0x80
 
 mutable struct TBinaryProtocol <: TProtocol
     t::TTransport
@@ -103,13 +104,16 @@ end
 function readMessageBegin(p::TBinaryProtocol)
     @debug("readMessageBegin")
     sz = read(p, UInt32)
+    @debug("readMessageBegin", sz)
     if sz > BINARY_VERSION_1
+        @debug("readMessageBegin > BINARY_VERSION_1", BINARY_VERSION_1)
         version = sz & BINARY_VERSION_MASK
         (version != BINARY_VERSION_1) && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "Bad binary protocol version: $version"))
         typ = Int32(sz & BINARY_TYPE_MASK)
         name = readString(p)
         seqid = readI32(p)
     else
+        @debug("readMessageBegin else")
         p.strict_read && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "No protocol version header"))
         name =  String(read!(p, Array{UInt8}(undef, Int(sz))))
         typ = Int32(readByte(p))
@@ -147,6 +151,8 @@ read(p::TBinaryProtocol, ::Type{TDOUBLE})       = reinterpret(TDOUBLE, _read_fix
 read!(p::TBinaryProtocol, a::Vector{UInt8})     = read!(p.t, a)
 read(p::TBinaryProtocol, ::Type{TUTF8})         = convert(TUTF8, String(read(p, Vector{UInt8})))
 read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(undef, _read_fixed(p.t, UInt32(0), 4, true)))
+
+transport(p::TBinaryProtocol) = p.t
 
 # ==========================================
 # Binary Protocol End
@@ -494,6 +500,61 @@ read(p::TCompactProtocol, t::Type{TDOUBLE})     = reinterpret(TDOUBLE, _read_fix
 read!(p::TCompactProtocol, a::Vector{UInt8})    = read!(p.t, a)
 read(p::TCompactProtocol, ::Type{TUTF8})        = convert(TUTF8, String(read(p, Vector{UInt8})))
 read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(undef, readSize(p)))
+
+transport(p::TCompactProtocol) = p.t
+
 # ==========================================
 # Compact Protocol End
+# ==========================================
+
+# ==========================================
+# Header Protocol Begin
+# ==========================================
+
+# THeaderProtocol mostly passes through calls to the underlying protocol.
+mutable struct THeaderProtocol{
+    TransportType <: TTransport, ProtocolType <:TProtocol
+} <: TProtocol
+    transport::TransportType
+    protocol::ProtocolType
+end
+
+function THeaderProtocol(transport::TTransport, proto_type::Type{TProtocol}, proto_args...)
+    header_transport = THeaderTransport(transport)
+    proto_type in (TBinaryProtocol, TCompactProtocol) ||
+        throw(ArgumentError("Unsupported protocol type: $proto_type"))
+    protocol = proto_type(args...) # construct protocol
+    return THeaderProtocol(header_transport, protocol)
+end
+
+function writeMessageBegin(p::THeaderProtocol, name::AbstractString, mtype::Int32, seqid::Integer)
+    writeMessageBegin(p.protocol, name, mtype, seqid)
+    if mtype in (MessageType.CALL, MessageType.ONEWAY)
+        p.transport.seq_id = seqid
+    end
+end
+
+writeMessageBegin(p::THeaderProtocol, args...) = writeMessageBegin(p.protocol, args...)
+writeMessageEnd(p::THeaderProtocol) = writeMessageEnd(p.protocol)
+writeFieldBegin(p::THeaderProtocol, args...) = writeFieldBegin(p.protocol, args...)
+writeFieldStop(p::THeaderProtocol) = writeFieldStop(p.protocol)
+writeMapBegin(p::THeaderProtocol, args...) = writeMapBegin(p.protocol, args...)
+writeCollectionsBegin(p::THeaderProtocol, args...) = writeCollectionsBegin(p.protocol, args...)
+writeListBegin(p::THeaderProtocol, args...) = writeListBegin(p.protocol, args...)
+writeSetBegin(p::THeaderProtocol, args...) = writeSetBegin(p.protocol, args...)
+write(p::THeaderProtocol, args...) = write(p.protocol, args...)
+
+function readMessageBegin(p::THeaderProtocol)
+    reset_protocol(p.transport)
+    readMessageBegin(p.protocol)
+end
+readFieldBegin(p::THeaderProtocol) = readFieldBegin(p.protocol)
+readFieldStop(p::THeaderProtocol) = readFieldStop(p.protocol)
+readMapBegin(p::THeaderProtocol) = readMapBegin(p.protocol)
+readListBegin(p::THeaderProtocol) = readListBegin(p.protocol)
+readSetBegin(p::THeaderProtocol) = readSetBegin(p.protocol)
+read(p::THeaderProtocol, args...) = read(p.protocol, args...)
+
+# ==========================================
+# Header Protocol End
 # ==========================================
