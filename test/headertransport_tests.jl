@@ -2,23 +2,54 @@ using Thrift
 using Test
 
 @testset "HeaderTransport" begin
-    memory_transport = TMemoryTransport()
-    header_transport = THeaderTransport(transport=memory_transport)
 
-    @test bytesavailable(header_transport.wbuf) === 0
+    @testset "Simple case" begin
+        memory_transport = TMemoryTransport()
+        header_transport = THeaderTransport(transport=memory_transport)
 
-    write(header_transport, [0x01, 0x02])
-    @test bytesavailable(header_transport.wbuf) === 2
+        # Check initial state
+        @test bytesavailable(header_transport.rbuf) == 0
+        @test bytesavailable(header_transport.wbuf) == 0
 
-    flush(header_transport)
-    @test bytesavailable(header_transport.wbuf) === 0
+        # Write some bytes
+        bytes = rand(UInt8(1):UInt8(4), 100)
+        write(header_transport, bytes)
+        @test bytesavailable(header_transport.wbuf) == length(bytes)
 
-    @show bytesavailable(memory_transport.buff)
+        # Flushing the transport should put data in to the memory transport
+        flush(header_transport)
+        @test bytesavailable(header_transport.wbuf) == 0
 
-    # fill rbuf for testing only
-    # write(header_transport.rbuf, take!(memory_transport.buff))
+        # Confirm that read buffer is still empty
+        @test bytesavailable(header_transport.rbuf) == 0
 
-    @show header_transport.rbuf
-    @show Thrift.read_frame!(header_transport, 72 - 4)  # exclude LENGTH32
-    @show header_transport.read_headers
+        # Now, read a frame, which pulls data from the memory transport
+        Thrift.read_frame!(header_transport)
+        @test bytesavailable(header_transport.rbuf) > 0
+
+        # Check default read header
+        @test length(header_transport.read_headers) > 0
+        @test header_transport.read_headers["client_metadata"] ==
+            "{\"agent\":\"Julia THeaderTransport\"}"
+
+        # Verify that data is read
+        @test bytesavailable(header_transport.rbuf) == length(bytes)
+        @test read(header_transport.rbuf) == bytes
+    end
+
+    @testset "Transformation" begin
+        memory_transport = TMemoryTransport()
+        header_transport = THeaderTransport(
+            transport=memory_transport,
+            write_transforms=Thrift.TransformType.ZLIB
+        )
+        bytes = rand(UInt8(1):UInt8(4), 100)
+        write(header_transport, bytes)
+        flush(header_transport)  # transformation happens now
+
+        Thrift.read_frame!(header_transport)
+        @test header_transport.read_headers["client_metadata"] ==
+            "{\"agent\":\"Julia THeaderTransport\"}"
+        @test read(header_transport.rbuf) == bytes
+    end
 end

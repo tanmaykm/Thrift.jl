@@ -4,6 +4,10 @@ using Distributed
 using Sockets
 using ThriftJuliaCompiler_jll
 
+using CodecZlib
+using CodecZstd
+using TranscodingStreams
+
 import Sockets: TCPServer, listen, accept
 import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!, hasproperty, getproperty, setproperty!, propertynames
 
@@ -47,5 +51,6 @@ include("transports.jl")
 include("protocols.jl")
 include("processor.jl")
 include("server.jl")
+include("utils.jl")
 
 end # module

@@ -172,24 +172,20 @@ end
 close(tsock::TSocketBase) = (isopen(tsock.io) && close(tsock.io); nothing)
 rawio(tsock::TSocketBase) = tsock.io
 
-tohex(bytes::Vector{UInt8}) = join(map(s -> "0x$s", bytes2hex.(bytes)), ", ")
-
 function read!(tsock::TSocketBase, buff::Vector{UInt8})
     result = read!(tsock.io, buff)
     @debug "TSocketBase.read!" tohex(buff)
     return result
 end
 
-function read(tsock::TSocketBase, sz::Integer)
+function read(tsock::TSocketBase, sz::Union{Integer,Type{UInt8}})
     result = read(tsock.io, sz)
     @debug "TSocketBase.read" result
-    #foreach(println, stacktrace()) # debug stack trace
     return result
 end
 
 function write(tsock::TSocketBase, buff::Vector{UInt8})
     @debug "TSocketBase.write" tohex(buff)
-    # foreach(println, stacktrace()) # debug stack trace
     write(tsock.io, buff)
 end
 
@@ -234,7 +230,15 @@ read(t::TFileTransport, UInt8) = read(t.handle, UInt8)
 write(t::TFileTransport, buff::Vector{UInt8}) = write(t.handle, buff)
 write(t::TFileTransport, b::UInt8) = write(t.handle, b)
 
-# Header transport
+# ---------------------------------------------------------------------
+# THeader transport
+#
+# The following code is largely adapted from the Python implementation
+# of the THeader transport, with the exception that it does not include
+# any code that handles the deprecated/unframed protocol here.
+# ---------------------------------------------------------------------
+
+# Define constants
 
 module ProtocolType
     const BINARY = 0
@@ -290,7 +294,12 @@ module HeaderKeys
 end
 using .HeaderKeys
 
-# wbuf is seekable and used to append data for later flushing
+"""
+    THeaderTransport{TransportType <: TTransport} <: TTransport
+
+THeaderTransport is a transport itself but it also wraps another transport.
+For examples, `THeaderTransport{TSocket}` or `THeaderTransport{TMemory}`.
+"""
 Base.@kwdef mutable struct THeaderTransport{TransportType <: TTransport} <: TTransport
     transport::TransportType
     rbuf = PipeBuffer()
@@ -298,8 +307,8 @@ Base.@kwdef mutable struct THeaderTransport{TransportType <: TTransport} <: TTra
     wbuf = PipeBuffer()
     seqid = 0
     flags = 0
-    read_transforms = []  # TODO concrete type
-    write_transforms = []
+    read_transforms = Int[]
+    write_transforms = Int[]
     proto_id = ProtocolType.COMPACT
     client_type = ClientType.HEADER
     read_headers = Dict{String,String}()
@@ -321,15 +330,15 @@ function read(t::THeaderTransport, sz::Integer)
     len = length(data)
     len == sz && return data
     remaining = sz - len
-    read_frame!(t, remaining)  # read remaining bytes from new frame
+    read_frame!(t)
     return append!(data, take!(t.rbuf, remaining))
 end
 
-function read_frame!(t::THeaderTransport, req_sz::Integer)
+function read_frame!(t::THeaderTransport)
     word1 = read(t.transport, 4)
     sz = ntoh(reinterpret(Int32, word1)[1])
     proto_id = word1[1]
-    @info "read_frame!" word1 sz proto_id
+    @debug "read_frame!" tohex(word1) sz proto_id
 
     proto_id in (BINARY_PROTOCOL_ID, COMPACT_PROTOCOL_ID) &&
         throw(TTransportException("Unframed protocols are deprecated already"))
@@ -345,7 +354,7 @@ function read_frame!(t::THeaderTransport, req_sz::Integer)
         throw(TTransportException("Header protocol expected rather than binary/compact"))
 
     if magic == Magic.PACKED_HEADER_MAGIC
-        @info "Yay, found header magic"
+        @debug "Yay, found header magic" tohex(magic)
         t.client_type = ClientType.HEADER
         # TODO implement _frame_size_check
         # flags(2), seq_id(4), header_size(2)
@@ -368,7 +377,7 @@ end
 
 # NOTE: buf position must be at the beginniing of header meta
 function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Integer, buf::IOBuffer)
-    t.read_transforms = []  # clear out previous transformations (TODO: needed?)
+    t.read_transforms = Int[]  # clear out previous transformations (TODO: needed?)
     header_size_in_bytes = header_size * 4
     header_size_in_bytes <= sz ||
         throw(TTransportException("Header size $(header_size_in_bytes) is larger than frame size $sz"))
@@ -379,7 +388,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
 
     for _ in 1:num_headers
         trans_id = readVarint(buf)
-        if trans_id in (TransformType.ZLIB, TransformType.SNAPPY, TransformType.ZSTD)
+        if trans_id in (TransformType.ZLIB, TransformType.ZSTD) # TODO: snappy
             insert!(t.read_transforms, 1, trans_id)
         else
             throw(TTransportException("Unsupport transformation: $trans_id"))
@@ -425,13 +434,35 @@ write(t::THeaderTransport, buff::Vector{UInt8}) = write(t.wbuf, buff)
 write(t::THeaderTransport, b::UInt8) = write(t.wbuf, b)
 
 function transform(t::THeaderTransport, data::Vector{UInt8})
-    # TODO implement transformation/compression
+    for trans_id in t.write_transforms
+        if trans_id == TransformType.ZLIB
+            data = transform_data(ZlibCompressor, data)
+        elseif trans_id == TransformType.ZSTD
+            data = transform_data(ZstdCompressor, data)
+        else
+            throw(TTransportException("Unsupported transformation: $trans_id"))
+        end
+    end
     return data
 end
 
 function untransform(t::THeaderTransport, data::Vector{UInt8})
-    # TODO implement transformation/compression
+    for trans_id in t.read_transforms
+        if trans_id == TransformType.ZLIB
+            data = transform_data(ZlibDecompressor, data)
+        elseif trans_id == TransformType.ZSTD
+            data = transform_data(ZstdDecompressor, data)
+        else
+            throw(TTransportException("Unsupported transformation: $trans_id"))
+        end
+    end
     return data
+end
+
+function transform_data(codec, data::Vector{UInt8})
+    codec_processor = codec()
+    TranscodingStreams.initialize(codec_processor)
+    return transcode(codec_processor, data)
 end
 
 function flush(t::THeaderTransport, oneway=false)
@@ -534,7 +565,7 @@ end
 # debug purpose only
 function peek_buffer(buf::IOBuffer, label::AbstractString)
     n = bytesavailable(buf)
-    println(label, "(", n, " bytes): ", tohex(buf.data[1:n]))
+    @debug "$label($n bytes)" tohex(buf.data[1:n])
 end
 
 # Borrowed from protocol.jl
