@@ -180,7 +180,7 @@ end
 
 function read(tsock::TSocketBase, sz::Union{Integer,Type{UInt8}})
     result = read(tsock.io, sz)
-    @debug "TSocketBase.read" result
+    @debug "TSocketBase.read" tohex(result)
     return result
 end
 
@@ -334,6 +334,14 @@ function read(t::THeaderTransport, sz::Integer)
     return append!(data, take!(t.rbuf, remaining))
 end
 
+function read(t::THeaderTransport, DT::DataType)
+    navlb = bytesavailable(t.rbuf)
+    if navlb == 0
+        read_frame!(t)
+    end
+    return read(t.rbuf, DT)
+end
+
 function read_frame!(t::THeaderTransport)
     word1 = read(t.transport, 4)
     sz = ntoh(reinterpret(Int32, word1)[1])
@@ -363,16 +371,19 @@ function read_frame!(t::THeaderTransport)
         t.seqid = ntoh(reinterpret(UInt32, n_header_meta[3:6])[1])
         header_size = ntoh(reinterpret(UInt16, n_header_meta[7:8])[1])
         remaining = sz - 10
+        @debug "read_frame!" tohex(proto_id) tohex(n_header_meta) tohex(t.flags) tohex(t.seqid) header_size remaining
         buf = IOBuffer()
         write(buf, magic)
         write(buf, n_header_meta)
         write(buf, read(t.transport, remaining))
         seek(buf, 10)
+        peek_buffer(buf, "read_frame! buf")
         read_header_format!(t, remaining, header_size, buf)
     else
         t.client_type = ClientType.UNKNOWN
         throw(TTransportException("Client type $(t.client_type) not supported on server"))
     end
+    return nothing
 end
 
 # NOTE: buf position must be at the beginniing of header meta
@@ -385,6 +396,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
     end_header = position(buf) + header_size_in_bytes
     t.proto_id = readVarint(buf)
     num_headers = readVarint(buf)
+    @debug "read_header_format!" t.proto_id num_headers
 
     for _ in 1:num_headers
         trans_id = readVarint(buf)
@@ -410,7 +422,9 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
 
     # Read payload, untransform it, and place it in rbuf
     seek(buf, end_header)
+    @debug "read_header_format! seeking to end_header" end_header
     payload = read(buf, sz - header_size)
+    @debug "read_header_format!" tohex(payload)
     t.rbuf = PipeBuffer(untransform(t, payload))
 end
 
@@ -518,6 +532,7 @@ function make_header_message(
     num_transforms = length(t.write_transforms)
     writeVarint(header_data, t.proto_id)
     writeVarint(header_data, num_transforms)
+    peek_buffer(header_data, "header_data")
 
     # Calculate sizes
     header_size = bytesavailable(transform_data) + bytesavailable(info_data) +
@@ -527,6 +542,9 @@ function make_header_message(
 
     # Write header meta data
     wsz += header_size + 10 # MAGIC(2) | FLAGS(2) + SEQ_ID(4) + HEADER_SIZE(2)
+    header_words = header_size ÷ 4
+    @debug "make_header_message"  header_size padding_size header_words
+
     if wsz > Magic.MAX_FRAME_SIZE
         write(buf, hton(Magic.BIG_FRAME_MAGIC))
         write(buf, hton(UInt64(wsz)))
@@ -536,7 +554,7 @@ function make_header_message(
     write(buf, hton(UInt16(Magic.HEADER_MAGIC >> 16)))
     write(buf, hton(UInt16(t.flags)))
     write(buf, hton(UInt32(t.seqid)))
-    write(buf, hton(UInt16(header_size ÷ 4)))
+    write(buf, hton(UInt16(header_words)))
 
     # Write all data now
     write(buf, take!(header_data))
