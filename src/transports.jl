@@ -178,7 +178,7 @@ function read!(tsock::TSocketBase, buff::Vector{UInt8})
     return result
 end
 
-function read(tsock::TSocketBase, sz::Union{Integer,Type{UInt8}})
+function read(tsock::TSocketBase, sz::Union{Integer,Type{<:Unsigned}})
     result = read(tsock.io, sz)
     @debug "TSocketBase.read" tohex(result)
     return result
@@ -186,12 +186,12 @@ end
 
 function write(tsock::TSocketBase, buff::Vector{UInt8})
     @debug "TSocketBase.write" tohex(buff)
-    write(tsock.io, buff)
+    return write(tsock.io, buff)
 end
 
 function write(tsock::TSocketBase, b::UInt8)
     @debug "TSocketBase.write" b
-    write(tsock.io, b)
+    return write(tsock.io, b)
 end
 
 flush(tsock::TSocketBase)   = flush(tsock.io)
@@ -243,6 +243,7 @@ write(t::TFileTransport, b::UInt8) = write(t.handle, b)
 module ProtocolType
     const BINARY = 0
     const COMPACT = 2
+    const UNKNOWN = -1
 end
 using .ProtocolType
 
@@ -309,7 +310,7 @@ Base.@kwdef mutable struct THeaderTransport{TransportType <: TTransport} <: TTra
     flags = 0
     read_transforms = Int[]
     write_transforms = Int[]
-    proto_id = ProtocolType.COMPACT
+    proto_id = ProtocolType.UNKNOWN
     client_type = ClientType.HEADER
     read_headers = Dict{String,String}()
     read_persistent_headers = Dict{String,String}()
