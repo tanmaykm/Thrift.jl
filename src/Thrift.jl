@@ -30,7 +30,7 @@ export TransportExceptionTypes, TTransportException
 export SASL_MECH_PLAIN, SASL_MECH_KERB, SASL_MECH_LDAP, SASLException
 
 # from protocols.jl
-export TBinaryProtocol, TCompactProtocol
+export TBinaryProtocol, TCompactProtocol, THeaderProtocol
 
 # from processor.jl
 export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
