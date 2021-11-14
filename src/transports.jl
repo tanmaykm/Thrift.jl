@@ -305,8 +305,9 @@ module Magic
     const PACKED_HEADER_MAGIC = [0x0f, 0xff]
 end
 
-module HeaderKeys
-    const CLIENT_METADATA = "client_metadata"
+module HeaderConstants
+    const CLIENT_METADATA_KEY = "client_metadata"
+    const CLIENT_METADATA_VALUE = """{"agent":"Julia THeaderTransport"}"""
 end
 
 const HeadersType = Dict{String,String}
@@ -352,6 +353,18 @@ mutable struct THeaderTransport{T <: TTransport} <: TTransport
         true,                  # first_request
         Magic.MAX_FRAME_SIZE,  # max_frame_size
     )
+end
+
+"""
+    HeaderMeta
+
+Keep track of some metadata information about the header message.
+"""
+struct HeaderMeta
+    header_size::Int    # number of bytes in the header including padding
+    padding_size::Int   # padding to 32-bit boundary
+    header_words::Int   # number of words (32-bit values) including padding
+    message_size::Int   # message size (excluding the top LENGTH word)
 end
 
 rawio(t::THeaderTransport)  = rawio(t.tp)
@@ -539,13 +552,13 @@ end
 
 function flush(t::THeaderTransport)
     # Flush write buffer (wbuf) which contains the payload
-    wout = transform(t, take!(t.wbuf))
-    wsz = length(wout)
+    payload = transform(t, take!(t.wbuf))
+    payload_size = length(payload)
 
     # Create a new IO buffer to hold the entire message including header
-    buf = make_header_message(t, wout, wsz)
+    buf = make_header_message(t, payload)
 
-    message_length_offset = wsz < Magic.MAX_FRAME_SIZE ? 4 : 12
+    message_length_offset = payload_size < Magic.MAX_FRAME_SIZE ? 4 : 12
     frame_size = bytesavailable(buf) - message_length_offset
     check_frame_size(frame_size, t.max_frame_size)
 
@@ -554,71 +567,96 @@ function flush(t::THeaderTransport)
     flush(t.tp)
 end
 
-function make_header_message(
-    t::THeaderTransport,
-    wout::Vector{UInt8},
-    wsz::Integer
-)
-    buf = PipeBuffer()
-
-    # Append client metadata header for the first request
+function init_standard_headers!(t::THeaderTransport)
+    # Append client metadata header only for the first request
     if t.first_request
         t.first_request = false
-        t.write_headers[HeaderKeys.CLIENT_METADATA] = """{"agent":"Julia THeaderTransport"}"""
+        t.write_headers[HeaderConstants.CLIENT_METADATA_KEY] = HeaderConstants.CLIENT_METADATA_VALUE
     end
+end
 
-    # 1. Transform meta
-    transform_data = PipeBuffer()
+function make_header_transform_data(t::THeaderTransport)
+    buf = PipeBuffer()
     for trans_id in t.write_transforms
-        writeVarint(transform_data, trans_id)
+        writeVarint(buf, trans_id)
     end
-    debug_buffer("transform_data", transform_data)
+    debug_buffer("transform_data", buf)
+    return buf
+end
 
-    # 2. Info meta
-    info_data = PipeBuffer()
-    flush_info_headers!(info_data, t.write_persistent_headers, InfoID.PERSISTENT)
-    flush_info_headers!(info_data, t.write_headers, InfoID.NORMAL)
-    debug_buffer("info_data", info_data)
+function make_header_info_data(t::THeaderTransport)
+    buf = PipeBuffer()
+    flush_info_headers!(buf, t.write_persistent_headers, InfoID.PERSISTENT)
+    flush_info_headers!(buf, t.write_headers, InfoID.NORMAL)
+    debug_buffer("info_data", buf)
+    return buf
+end
 
-    # 3. Header meta
-    header_data = PipeBuffer()
+function make_header_meta_data(t::THeaderTransport)
+    buf = PipeBuffer()
     num_transforms = length(t.write_transforms)
-    writeVarint(header_data, t.proto_id)
-    writeVarint(header_data, num_transforms)
-    debug_buffer("header_data", header_data)
+    writeVarint(buf, t.proto_id)
+    writeVarint(buf, num_transforms)
+    debug_buffer("header_data", buf)
+    return buf
+end
 
-    # Calculate sizes
+function calculate_header_meta(
+    transform_data::IOBuffer,
+    info_data::IOBuffer,
+    header_data::IOBuffer,
+    payload::Vector{UInt8},
+)
     header_size = bytesavailable(transform_data) + bytesavailable(info_data) +
         bytesavailable(header_data)
     padding_size = 4 - (header_size % 4)
     header_size += padding_size
-
-    # Write header meta data
-    wsz += header_size + 10 # MAGIC(2) | FLAGS(2) + SEQ_ID(4) + HEADER_SIZE(2)
     header_words = header_size ÷ 4
-    @debug("make_header_message", header_size, padding_size, header_words)
+    # MAGIC(2) + FLAGS(2) + SEQ_ID(4) + HEADER_SIZE(2) = 10 bytes
+    message_size = length(payload) + header_size + 10
+    return HeaderMeta(header_size, padding_size, header_words, message_size)
+end
 
-    if wsz > Magic.MAX_FRAME_SIZE
+function make_header_top_part(t::THeaderTransport, header_meta::HeaderMeta)
+    buf = PipeBuffer()
+    if header_meta.message_size > Magic.MAX_FRAME_SIZE
         write(buf, hton(Magic.BIG_FRAME_MAGIC))
-        write(buf, hton(UInt64(wsz)))
+        write(buf, hton(UInt64(header_meta.message_size)))
     else
-        write(buf, hton(UInt32(wsz)))
+        write(buf, hton(UInt32(header_meta.message_size)))
     end
     write(buf, hton(UInt16(Magic.HEADER_MAGIC >> 16)))
     write(buf, hton(UInt16(t.flags)))
     write(buf, hton(UInt32(t.seqid)))
-    write(buf, hton(UInt16(header_words)))
+    write(buf, hton(UInt16(header_meta.header_words)))
+    return buf
+end
 
-    # Write all data now
+function make_header_message(
+    t::THeaderTransport,
+    payload::Vector{UInt8},
+)
+    init_standard_headers!(t)
+
+    transform_data = make_header_transform_data(t)
+    info_data = make_header_info_data(t)
+    header_data = make_header_meta_data(t)
+
+    header_meta = calculate_header_meta(transform_data, info_data, header_data, payload)
+    top_part = make_header_top_part(t, header_meta)
+
+    buf = PipeBuffer()
+    write(buf, take!(top_part))
     write(buf, take!(header_data))
     write(buf, take!(transform_data))
     write(buf, take!(info_data))
-    write(buf, zeros(UInt8, padding_size))
-    write(buf, wout)
+    write(buf, zeros(UInt8, header_meta.padding_size))
+    write(buf, payload)
 
     return buf
 end
 
+# Send info headers to the buffer. The original dictionary will be emptied.
 function flush_info_headers!(buf::IOBuffer, headers::AbstractDict{<:String,<:String}, type::Integer)
     if length(headers) > 0
         writeVarint(buf, type)
