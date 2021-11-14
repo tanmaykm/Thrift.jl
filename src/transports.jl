@@ -315,6 +315,8 @@ Base.@kwdef mutable struct THeaderTransport{T <: TTransport} <: TTransport
     first_request = true
 end
 
+THeaderTransport(t::TTransport) = THeaderTransport(transport=t)
+
 rawio(t::THeaderTransport)  = rawio(t.transport)
 open(t::THeaderTransport)   = open(t.transport)
 close(t::THeaderTransport)  = close(t.transport)
