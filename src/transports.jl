@@ -319,7 +319,7 @@ THeaderTransport is a transport itself but it also wraps another transport.
 For examples, `THeaderTransport{TSocket}` or `THeaderTransport{TMemory}`.
 """
 mutable struct THeaderTransport{T <: TTransport} <: TTransport
-    transport::T
+    tp::T
     rbuf::IOBuffer
     wbuf::IOBuffer
     seqid::Int64
@@ -354,10 +354,10 @@ mutable struct THeaderTransport{T <: TTransport} <: TTransport
     )
 end
 
-rawio(t::THeaderTransport)  = rawio(t.transport)
-open(t::THeaderTransport)   = open(t.transport)
-close(t::THeaderTransport)  = close(t.transport)
-isopen(t::THeaderTransport) = isopen(t.transport)
+rawio(t::THeaderTransport)  = rawio(t.tp)
+open(t::THeaderTransport)   = open(t.tp)
+close(t::THeaderTransport)  = close(t.tp)
+isopen(t::THeaderTransport) = isopen(t.tp)
 
 read!(t::THeaderTransport, buff::Vector{UInt8}) = read!(t.rbuf, buff)
 
@@ -379,7 +379,7 @@ function read(t::THeaderTransport, DT::DataType)
 end
 
 function read_frame!(t::THeaderTransport)
-    word1 = read(t.transport, 4)
+    word1 = read(t.tp, 4)
     sz = extract(word1, Int32)
 
     # For safety reason, check the first byte and see if it happens to be
@@ -393,9 +393,9 @@ function read_frame!(t::THeaderTransport)
         throw_header_exception("HTTP server not supported")
 
     if sz == Magic.BIG_FRAME_MAGIC
-        sz = extract(read(t.transport, 8), UInt64)
+        sz = extract(read(t.tp, 8), UInt64)
     end
-    magic = read(t.transport, 2)
+    magic = read(t.tp, 2)
     proto_id = magic[1]
     proto_id in (BINARY_PROTOCOL_ID, COMPACT_PROTOCOL_ID) &&
         throw_header_exception("Header protocol expected rather than binary/compact")
@@ -405,7 +405,7 @@ function read_frame!(t::THeaderTransport)
         t.client_type = ClientType.HEADER
         check_frame_size(sz, t.max_frame_size)
         # flags(2), seq_id(4), header_size(2)
-        n_header_meta = read(t.transport, 8)
+        n_header_meta = read(t.tp, 8)
         t.flags = extract(n_header_meta, UInt16, 1)
         t.seqid = extract(n_header_meta, UInt32, 3)
         header_size = extract(n_header_meta, UInt16, 7)
@@ -415,7 +415,7 @@ function read_frame!(t::THeaderTransport)
         buf = IOBuffer()
         write(buf, magic)
         write(buf, n_header_meta)
-        write(buf, read(t.transport, remaining))
+        write(buf, read(t.tp, remaining))
         seek(buf, 10)
         debug_buffer("read_frame! buf", buf)
         read_header_format!(t, remaining, header_size, buf)
@@ -550,8 +550,8 @@ function flush(t::THeaderTransport)
     check_frame_size(frame_size, t.max_frame_size)
 
     debug_buffer("Header Message", buf)
-    write(t.transport, take!(buf))
-    flush(t.transport)
+    write(t.tp, take!(buf))
+    flush(t.tp)
 end
 
 function make_header_message(
