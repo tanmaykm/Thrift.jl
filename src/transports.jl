@@ -172,12 +172,9 @@ end
 function close(tsock::TSocketBase)
     if isopen(tsock.io)
         close(tsock.io)
-        @debug "Closed socket" tsock
+        @debug("Closed socket", tsock)
     else
-        @debug "Socket cannot be closed" tsock
-        open("/tmp/tomtest", "w") do io
-            foreach(x -> println(io, x), stacktrace())
-        end
+        @debug("Socket cannot be closed", tsock)
     end
     return nothing
 end
@@ -186,7 +183,7 @@ rawio(tsock::TSocketBase) = tsock.io
 
 function read!(tsock::TSocketBase, buff::Vector{UInt8})
     result = read!(tsock.io, buff)
-    @debug "TSocketBase.read!" tsock tohex(buff)
+    @debug("TSocketBase.read!", tsock, tohex(buff))
     return result
 end
 
@@ -196,24 +193,24 @@ function read(tsock::TSocketBase, sz::Integer)
     # Instead, it just returns an empty array. Need to throw so that the
     # server can exit out of loop when this happens.
     length(result) !== sz && throw(EOFError())
-    @debug "TSocketBase.read" tsock sz tohex(result)
+    @debug("TSocketBase.read", tsock, sz, tohex(result))
     return result
 end
 
 function read(tsock::TSocketBase, type::Type{<:Unsigned})
     result = read(tsock.io, type)
-    @debug "TSocketBase.read" tsock type tohex(result)
+    @debug("TSocketBase.read", tsock, type, tohex(result))
     return result
 end
 
 
 function write(tsock::TSocketBase, buff::Vector{UInt8})
-    @debug "TSocketBase.write" tsock tohex(buff)
+    @debug("TSocketBase.write", tsock, tohex(buff))
     return write(tsock.io, buff)
 end
 
 function write(tsock::TSocketBase, b::UInt8)
-    @debug "TSocketBase.write" tsock b
+    @debug("TSocketBase.write", tsock, b)
     return write(tsock.io, b)
 end
 
@@ -388,7 +385,7 @@ function read_frame!(t::THeaderTransport)
     # For safety reason, check the first byte and see if it happens to be
     # the legacy binary/compact protocol.
     proto_id = word1[1]
-    @debug "read_frame!" tohex(word1) sz proto_id
+    @debug("read_frame!", tohex(word1), sz, proto_id)
 
     proto_id in (BINARY_PROTOCOL_ID, COMPACT_PROTOCOL_ID) &&
         throw_header_exception("Unframed protocols are deprecated already")
@@ -404,7 +401,7 @@ function read_frame!(t::THeaderTransport)
         throw_header_exception("Header protocol expected rather than binary/compact")
 
     if magic == Magic.PACKED_HEADER_MAGIC
-        @debug "Found header magic" tohex(magic)
+        @debug("Found header magic", tohex(magic))
         t.client_type = ClientType.HEADER
         check_frame_size(sz, t.max_frame_size)
         # flags(2), seq_id(4), header_size(2)
@@ -413,13 +410,14 @@ function read_frame!(t::THeaderTransport)
         t.seqid = extract(n_header_meta, UInt32, 3)
         header_size = extract(n_header_meta, UInt16, 7)
         remaining = sz - 10
-        @debug "read_frame!" tohex(proto_id) tohex(n_header_meta) tohex(t.flags) tohex(t.seqid) header_size remaining
+        @debug("read_frame!", tohex(proto_id), tohex(n_header_meta), tohex(t.flags),
+            tohex(t.seqid), header_size, remaining)
         buf = IOBuffer()
         write(buf, magic)
         write(buf, n_header_meta)
         write(buf, read(t.transport, remaining))
         seek(buf, 10)
-        peek_buffer(buf, "read_frame! buf")
+        debug_buffer("read_frame! buf", buf)
         read_header_format!(t, remaining, header_size, buf)
     else
         t.client_type = ClientType.UNKNOWN
@@ -450,7 +448,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
     end_header = position(buf) + header_size_in_bytes
     t.proto_id = readVarint(buf)
     num_headers = readVarint(buf)
-    @debug "read_header_format!" t.proto_id num_headers
+    @debug("read_header_format!", t.proto_id, num_headers)
 
     for _ in 1:num_headers
         trans_id = readVarint(buf)
@@ -476,9 +474,9 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
 
     # Read payload, untransform it, and place it in rbuf
     seek(buf, end_header)
-    @debug "read_header_format! seeking to end_header" end_header
+    @debug("read_header_format! seeking to end_header", end_header)
     payload = read(buf, sz - header_size)
-    @debug "read_header_format!" tohex(payload)
+    @debug("read_header_format!", tohex(payload))
     t.rbuf = PipeBuffer(untransform(t, payload))
 end
 
@@ -503,7 +501,7 @@ write(t::THeaderTransport, b::UInt8) = write(t.wbuf, b)
 
 function transform(t::THeaderTransport, data::Vector{UInt8})
     if !isempty(t.write_transforms)
-        @debug "Transform method(s): " * join(t.write_transforms, ",")
+        @debug("Transform method(s): " * join(t.write_transforms, ","))
     end
     for trans_id in t.write_transforms
         if trans_id == TransformID.ZLIB
@@ -519,7 +517,7 @@ end
 
 function untransform(t::THeaderTransport, data::Vector{UInt8})
     if !isempty(t.read_transforms)
-        @debug "Unransform method(s): " * join(t.read_transforms, ",")
+        @debug("Unransform method(s): " * join(t.read_transforms, ","))
     end
     for trans_id in t.read_transforms
         if trans_id == TransformID.ZLIB
@@ -551,7 +549,7 @@ function flush(t::THeaderTransport)
     frame_size = bytesavailable(buf) - message_length_offset
     check_frame_size(frame_size, t.max_frame_size)
 
-    peek_buffer(buf, "Header Message")
+    debug_buffer("Header Message", buf)
     write(t.transport, take!(buf))
     flush(t.transport)
 end
@@ -574,20 +572,20 @@ function make_header_message(
     for trans_id in t.write_transforms
         writeVarint(transform_data, trans_id)
     end
-    peek_buffer(transform_data, "transform_data")
+    debug_buffer("transform_data", transform_data)
 
     # 2. Info meta
     info_data = PipeBuffer()
     flush_info_headers!(info_data, t.write_persistent_headers, InfoID.PERSISTENT)
     flush_info_headers!(info_data, t.write_headers, InfoID.NORMAL)
-    peek_buffer(info_data, "info_data")
+    debug_buffer("info_data", info_data)
 
     # 3. Header meta
     header_data = PipeBuffer()
     num_transforms = length(t.write_transforms)
     writeVarint(header_data, t.proto_id)
     writeVarint(header_data, num_transforms)
-    peek_buffer(header_data, "header_data")
+    debug_buffer("header_data", header_data)
 
     # Calculate sizes
     header_size = bytesavailable(transform_data) + bytesavailable(info_data) +
@@ -598,7 +596,7 @@ function make_header_message(
     # Write header meta data
     wsz += header_size + 10 # MAGIC(2) | FLAGS(2) + SEQ_ID(4) + HEADER_SIZE(2)
     header_words = header_size ÷ 4
-    @debug "make_header_message"  header_size padding_size header_words
+    @debug("make_header_message", header_size, padding_size, header_words)
 
     if wsz > Magic.MAX_FRAME_SIZE
         write(buf, hton(Magic.BIG_FRAME_MAGIC))

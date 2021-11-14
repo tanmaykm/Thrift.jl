@@ -5,7 +5,7 @@ using Test
 
     @testset "Write and read data" begin
         memory_transport = TMemoryTransport()
-        header_transport = THeaderTransport(transport=memory_transport)
+        header_transport = THeaderTransport(memory_transport)
 
         # Check initial state
         @test bytesavailable(header_transport.rbuf) == 0
@@ -41,10 +41,8 @@ using Test
         memory_transport = TMemoryTransport()
 
         # Apply all supporrted tarnsform methods
-        header_transport = THeaderTransport(
-            transport=memory_transport,
-            write_transforms=[Thrift.TransformID.ZLIB, Thrift.TransformID.ZSTD]
-        )
+        header_transport = THeaderTransport(memory_transport)
+        header_transport.write_transforms = [Thrift.TransformID.ZLIB, Thrift.TransformID.ZSTD]
 
         raw_size = 1000
         bytes = rand(UInt8(1):UInt8(4), raw_size)

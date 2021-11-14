@@ -104,16 +104,13 @@ end
 function readMessageBegin(p::TBinaryProtocol)
     @debug("readMessageBegin")
     sz = read(p, UInt32)
-    @debug("readMessageBegin", sz)
     if sz > BINARY_VERSION_1
-        @debug("readMessageBegin > BINARY_VERSION_1", BINARY_VERSION_1)
         version = sz & BINARY_VERSION_MASK
         (version != BINARY_VERSION_1) && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "Bad binary protocol version: $version"))
         typ = Int32(sz & BINARY_TYPE_MASK)
         name = readString(p)
         seqid = readI32(p)
     else
-        @debug("readMessageBegin else")
         p.strict_read && throw(TProtocolException(ProtocolExceptionType.BAD_VERSION, "No protocol version header"))
         name =  String(read!(p, Array{UInt8}(undef, Int(sz))))
         typ = Int32(readByte(p))

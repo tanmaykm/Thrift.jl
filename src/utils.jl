@@ -2,7 +2,7 @@
     tohex(x)
 
 Display `x` in human readable format that is also easy to copy/paste
-to REPL to re-create the data.
+to REPL to re-create the data for debugging purpose.
 """
 function tohex end
 
@@ -43,15 +43,25 @@ function extract(x::Vector{UInt8}, type::Type{<:Integer}, pos::Integer = 1)
 end
 
 """
-    peek_buffer(buf::IOBuffer, label::AbstractString)
+    debug_buffer(label::AbstractString, buf::IOBuffer)
 
-Display debug messaging with the buffer's content.
+Display debug message with the buffer's content.
 """
-function peek_buffer(buf::IOBuffer, label::AbstractString)
+function debug_buffer(label::AbstractString, buf::IOBuffer)
     n = bytesavailable(buf)
-    @debug "$label($n bytes)" tohex(buf.data[1:n])
+    @debug("$label($n bytes)", tohex(buf.data[1:n]))
 end
 
-# Borrowed from protocol.jl
+"""
+    writeVarint(io::IO, i::T) where {T <: Integer}
+
+Write a varint to the IO stream.
+"""
 writeVarint(io::IO, i::T) where {T <: Integer} = _write_uleb(io, i)
+
+"""
+    readVarint(io::IO, t::Type{T}=Int64) where {T <: Integer}
+
+Read a varint from the IO stream. Default is 64-bit integer.
+"""
 readVarint(io::IO, t::Type{T}=Int64) where {T <: Integer} = _read_uleb(io, t)
