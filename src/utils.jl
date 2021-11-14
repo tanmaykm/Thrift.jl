@@ -12,7 +12,7 @@ function tohex(bytes::Vector{UInt8})
     return "$len bytes: [$s]"
 end
 
-tohex(x::Unsigned) = "0x" * string(x; base = 16)
+tohex(x::Integer) = "0x" * string(x; base = 16)
 
 """
     extract(x, type, pos = 1)

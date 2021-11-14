@@ -321,24 +321,41 @@ const TransformType = Int
 THeaderTransport is a transport itself but it also wraps another transport.
 For examples, `THeaderTransport{TSocket}` or `THeaderTransport{TMemory}`.
 """
-Base.@kwdef mutable struct THeaderTransport{T <: TTransport} <: TTransport
+mutable struct THeaderTransport{T <: TTransport} <: TTransport
     transport::T
-    rbuf = PipeBuffer()
-    wbuf = PipeBuffer()
-    seqid = 0
-    flags = 0
-    read_transforms = TransformType[]
-    write_transforms = TransformType[]
-    proto_id = ProtocolType.UNKNOWN
-    client_type = ClientType.HEADER
-    read_headers = HeadersType()
-    read_persistent_headers = HeadersType()
-    write_headers = HeadersType()
-    write_persistent_headers = HeadersType()
-    first_request = true
-end
+    rbuf::IOBuffer
+    wbuf::IOBuffer
+    seqid::Int64
+    flags::Int64
+    read_transforms::Vector{TransformType}
+    write_transforms::Vector{TransformType}
+    proto_id::Int
+    client_type::Int
+    read_headers::HeadersType
+    read_persistent_headers::HeadersType
+    write_headers::HeadersType
+    write_persistent_headers::HeadersType
+    first_request::Bool
+    max_frame_size::UInt64
 
-THeaderTransport(t::TTransport) = THeaderTransport(transport=t)
+    THeaderTransport(transport::T) where {T <: TTransport} = new{T}(
+        transport,
+        PipeBuffer(),          # rbuf
+        PipeBuffer(),          # wbuf
+        0,                     # seqid
+        0,                     # flags
+        TransformType[],       # read_transforms
+        TransformType[],       # write_transforms
+        ProtocolType.UNKNOWN,  # proto_id
+        ClientType.HEADER,     # client_type
+        HeadersType(),         # read_headers
+        HeadersType(),         # read_persistent_headers
+        HeadersType(),         # write_headers
+        HeadersType(),         # write_persistent_headers
+        true,                  # first_request
+        Magic.MAX_FRAME_SIZE,  # max_frame_size
+    )
+end
 
 rawio(t::THeaderTransport)  = rawio(t.transport)
 open(t::THeaderTransport)   = open(t.transport)
@@ -374,9 +391,9 @@ function read_frame!(t::THeaderTransport)
     @debug "read_frame!" tohex(word1) sz proto_id
 
     proto_id in (BINARY_PROTOCOL_ID, COMPACT_PROTOCOL_ID) &&
-        throw(TTransportException("Unframed protocols are deprecated already"))
+        throw_header_exception("Unframed protocols are deprecated already")
     sz == Magic.HTTP_SERVER_MAGIC &&
-        throw(TTransportException("HTTP server not supported"))
+        throw_header_exception("HTTP server not supported")
 
     if sz == Magic.BIG_FRAME_MAGIC
         sz = extract(read(t.transport, 8), UInt64)
@@ -384,12 +401,12 @@ function read_frame!(t::THeaderTransport)
     magic = read(t.transport, 2)
     proto_id = magic[1]
     proto_id in (BINARY_PROTOCOL_ID, COMPACT_PROTOCOL_ID) &&
-        throw(TTransportException("Header protocol expected rather than binary/compact"))
+        throw_header_exception("Header protocol expected rather than binary/compact")
 
     if magic == Magic.PACKED_HEADER_MAGIC
-        @debug "Yay, found header magic" tohex(magic)
+        @debug "Found header magic" tohex(magic)
         t.client_type = ClientType.HEADER
-        # TODO implement _frame_size_check
+        check_frame_size(sz, t.max_frame_size)
         # flags(2), seq_id(4), header_size(2)
         n_header_meta = read(t.transport, 8)
         t.flags = extract(n_header_meta, UInt16, 1)
@@ -406,9 +423,19 @@ function read_frame!(t::THeaderTransport)
         read_header_format!(t, remaining, header_size, buf)
     else
         t.client_type = ClientType.UNKNOWN
-        throw(TTransportException("Client type $(t.client_type) not supported on server"))
+        throw_header_exception("Client type $(t.client_type) not supported on server")
     end
     return nothing
+end
+
+function throw_header_exception(message::AbstractString)
+    throw(TTransportException(TransportExceptionTypes.UNKNOWN, message))
+end
+
+function check_frame_size(sz, max_size)
+    if sz > max_size
+        throw_header_exception("Frame size too large: $sz (max is $max_size)")
+    end
 end
 
 # NOTE: buf position must be at the beginning of header meta
@@ -418,7 +445,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
 
     header_size_in_bytes = header_size * 4
     header_size_in_bytes <= sz ||
-        throw(TTransportException("Header size $(header_size_in_bytes) is larger than frame size $sz"))
+        throw_header_exception("Header size $(header_size_in_bytes) is larger than frame size $sz")
 
     end_header = position(buf) + header_size_in_bytes
     t.proto_id = readVarint(buf)
@@ -430,7 +457,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
         if trans_id in (TransformID.ZLIB, TransformID.ZSTD) # TODO: Add Snappy support
             insert!(t.read_transforms, 1, trans_id)
         else
-            throw(TTransportException("Unsupport transformation: $trans_id"))
+            throw_header_exception("Unsupport transformation: $trans_id")
         end
     end
 
@@ -467,7 +494,7 @@ end
 function read_string(buf::IOBuffer, end_header::Integer)
     str_sz = readVarint(buf)
     position(buf) + str_sz > end_header &&
-        throw(TTransportException("String read too big: $str_sz, past end_header=$end_header"))
+        throw_header_exception("String read too big: $str_sz, past end_header=$end_header")
     return String(read(buf, str_sz))
 end
 
@@ -484,7 +511,7 @@ function transform(t::THeaderTransport, data::Vector{UInt8})
         elseif trans_id == TransformID.ZSTD
             data = transform_data(ZstdCompressor, data)
         else
-            throw(TTransportException("Unsupported transformation: $trans_id"))
+            throw_header_exception("Unsupported transformation: $trans_id")
         end
     end
     return data
@@ -500,7 +527,7 @@ function untransform(t::THeaderTransport, data::Vector{UInt8})
         elseif trans_id == TransformID.ZSTD
             data = transform_data(ZstdDecompressor, data)
         else
-            throw(TTransportException("Unsupported transformation: $trans_id"))
+            throw_header_exception("Unsupported transformation: $trans_id")
         end
     end
     return data
@@ -522,7 +549,7 @@ function flush(t::THeaderTransport)
 
     message_length_offset = wsz < Magic.MAX_FRAME_SIZE ? 4 : 12
     frame_size = bytesavailable(buf) - message_length_offset
-    # TODO implement frame_size_check
+    check_frame_size(frame_size, t.max_frame_size)
 
     peek_buffer(buf, "Header Message")
     write(t.transport, take!(buf))
