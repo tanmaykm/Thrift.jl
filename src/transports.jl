@@ -169,28 +169,51 @@ function accept(tsock::TServerSocket)
     accsock
 end
 
-close(tsock::TSocketBase) = (isopen(tsock.io) && close(tsock.io); nothing)
+function close(tsock::TSocketBase)
+    if isopen(tsock.io)
+        close(tsock.io)
+        @debug "Closed socket" tsock
+    else
+        @debug "Socket cannot be closed" tsock
+        open("/tmp/tomtest", "w") do io
+            foreach(x -> println(io, x), stacktrace())
+        end
+    end
+    return nothing
+end
+
 rawio(tsock::TSocketBase) = tsock.io
 
 function read!(tsock::TSocketBase, buff::Vector{UInt8})
     result = read!(tsock.io, buff)
-    @debug "TSocketBase.read!" tohex(buff)
+    @debug "TSocketBase.read!" tsock tohex(buff)
     return result
 end
 
-function read(tsock::TSocketBase, sz::Union{Integer,Type{<:Unsigned}})
+function read(tsock::TSocketBase, sz::Integer)
     result = read(tsock.io, sz)
-    @debug "TSocketBase.read" tohex(result)
+    # The `read` function does not throw when the socket is already closed.
+    # Instead, it just returns an empty array. Need to throw so that the
+    # server can exit out of loop when this happens.
+    length(result) !== sz && throw(EOFError())
+    @debug "TSocketBase.read" tsock sz tohex(result)
     return result
 end
+
+function read(tsock::TSocketBase, type::Type{<:Unsigned})
+    result = read(tsock.io, type)
+    @debug "TSocketBase.read" tsock type tohex(result)
+    return result
+end
+
 
 function write(tsock::TSocketBase, buff::Vector{UInt8})
-    @debug "TSocketBase.write" tohex(buff)
+    @debug "TSocketBase.write" tsock tohex(buff)
     return write(tsock.io, buff)
 end
 
 function write(tsock::TSocketBase, b::UInt8)
-    @debug "TSocketBase.write" b
+    @debug "TSocketBase.write" tsock b
     return write(tsock.io, b)
 end
 
@@ -344,6 +367,9 @@ end
 function read_frame!(t::THeaderTransport)
     word1 = read(t.transport, 4)
     sz = extract(word1, Int32)
+
+    # For safety reason, check the first byte and see if it happens to be
+    # the legacy binary/compact protocol.
     proto_id = word1[1]
     @debug "read_frame!" tohex(word1) sz proto_id
 
@@ -387,7 +413,7 @@ end
 
 # NOTE: buf position must be at the beginning of header meta
 function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Integer, buf::IOBuffer)
-    # clear out previous transformations (TODO: needed?)
+    # clear out previous transformations
     t.read_transforms = TransformType[]
 
     header_size_in_bytes = header_size * 4
@@ -401,7 +427,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
 
     for _ in 1:num_headers
         trans_id = readVarint(buf)
-        if trans_id in (TransformID.ZLIB, TransformID.ZSTD) # TODO: snappy
+        if trans_id in (TransformID.ZLIB, TransformID.ZSTD) # TODO: Add Snappy support
             insert!(t.read_transforms, 1, trans_id)
         else
             throw(TTransportException("Unsupport transformation: $trans_id"))

@@ -17,7 +17,7 @@ import .srvcctrl: start_service, stop_service
 
 # transport_factory(x) = x
 # protocol_factory(x) = TBinaryProtocol(x)
-#protocol_factory(x) = TCompactProtocol(x)
+# protocol_factory(x) = TCompactProtocol(x)
 transport_factory(x) = THeaderTransport(x)
 protocol_factory(x) = THeaderProtocol(TBinaryProtocol(x))
 
