@@ -534,7 +534,9 @@ readMapBegin(p::THeaderProtocol) = readMapBegin(p.proto)
 readListBegin(p::THeaderProtocol) = readListBegin(p.proto)
 readSetBegin(p::THeaderProtocol) = readSetBegin(p.proto)
 
-read(p::THeaderProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p.proto, T())
+# TODO(tomkwong) Is this needed? What about other container types?
+# read(p::THeaderProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p.proto, T())
+
 for _typ in _plain_types
     @eval begin
         write(p::THeaderProtocol, val::$(_typ)) = write(p.proto, val)
