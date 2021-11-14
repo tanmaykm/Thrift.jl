@@ -15,9 +15,12 @@ import .proto_tests: ProtoTestsProcessor, ProtoTestsClient, InvalidOperation, Al
 import .proto_tests: test_hello, test_exception, test_oneway, ping, test_enum, test_types, test_types_default
 import .srvcctrl: start_service, stop_service
 
-transport_factory(x) = x
-protocol_factory(x) = TBinaryProtocol(x)
+# transport_factory(x) = x
+# protocol_factory(x) = TBinaryProtocol(x)
 #protocol_factory(x) = TCompactProtocol(x)
+
+transport_factory(x) = THeaderTransport(transport=x)
+protocol_factory(x) = THeaderProtocol(TBinaryProtocol(x))
 
 function make_server()
     # create a server instance with our choice of protocol and transport

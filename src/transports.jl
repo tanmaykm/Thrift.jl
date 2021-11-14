@@ -235,7 +235,7 @@ write(t::TFileTransport, b::UInt8) = write(t.handle, b)
 #
 # The following code is largely adapted from the Python implementation
 # of the THeader transport, with the exception that it does not include
-# any code that handles the deprecated/unframed protocol here.
+# any code that handles deprecated/unframed protocol.
 # ---------------------------------------------------------------------
 
 # Define constants
@@ -245,7 +245,6 @@ module ProtocolType
     const COMPACT = 2
     const UNKNOWN = -1
 end
-using .ProtocolType
 
 module ClientType
     const HEADER = 0
@@ -258,9 +257,8 @@ module ClientType
     const UNKNOWN = 8
     const UNFRAMED_COMPACT_DEPRECATED = 9
 end
-using .ClientType
 
-module TransformType
+module TransformID
     const NONE = 0x00
     const ZLIB = 0x01
     const HMAC = 0x02
@@ -268,13 +266,11 @@ module TransformType
     const QLZ = 0x04
     const ZSTD = 0x05
 end
-using .TransformType
 
-module InfoType
+module InfoID
     const NORMAL = 1
     const PERSISTENT = 2
 end
-using .InfoType
 
 module Magic
     const HEADER_MAGIC = 0x0FFF0000
@@ -288,34 +284,34 @@ module Magic
     const MAX_FRAME_SIZE = 0x3FFFFFFF
     const PACKED_HEADER_MAGIC = [0x0f, 0xff]
 end
-using .Magic
 
 module HeaderKeys
     const CLIENT_METADATA = "client_metadata"
 end
-using .HeaderKeys
+
+const HeadersType = Dict{String,String}
+const TransformType = Int
 
 """
-    THeaderTransport{TransportType <: TTransport} <: TTransport
+    THeaderTransport{T <: TTransport} <: TTransport
 
 THeaderTransport is a transport itself but it also wraps another transport.
 For examples, `THeaderTransport{TSocket}` or `THeaderTransport{TMemory}`.
 """
-Base.@kwdef mutable struct THeaderTransport{TransportType <: TTransport} <: TTransport
-    transport::TransportType
+Base.@kwdef mutable struct THeaderTransport{T <: TTransport} <: TTransport
+    transport::T
     rbuf = PipeBuffer()
-    # rbuf_frame = false
     wbuf = PipeBuffer()
     seqid = 0
     flags = 0
-    read_transforms = Int[]
-    write_transforms = Int[]
+    read_transforms = TransformType[]
+    write_transforms = TransformType[]
     proto_id = ProtocolType.UNKNOWN
     client_type = ClientType.HEADER
-    read_headers = Dict{String,String}()
-    read_persistent_headers = Dict{String,String}()
-    write_headers = Dict{String,String}()
-    write_persistent_headers = Dict{String,String}()
+    read_headers = HeadersType()
+    read_persistent_headers = HeadersType()
+    write_headers = HeadersType()
+    write_persistent_headers = HeadersType()
     first_request = true
 end
 
@@ -345,7 +341,7 @@ end
 
 function read_frame!(t::THeaderTransport)
     word1 = read(t.transport, 4)
-    sz = ntoh(reinterpret(Int32, word1)[1])
+    sz = extract(word1, Int32)
     proto_id = word1[1]
     @debug "read_frame!" tohex(word1) sz proto_id
 
@@ -355,7 +351,7 @@ function read_frame!(t::THeaderTransport)
         throw(TTransportException("HTTP server not supported"))
 
     if sz == Magic.BIG_FRAME_MAGIC
-        sz = ntoh(reinterpret(UInt64, read(t.transport, 8))[1])
+        sz = extract(read(t.transport, 8), UInt64)
     end
     magic = read(t.transport, 2)
     proto_id = magic[1]
@@ -368,9 +364,9 @@ function read_frame!(t::THeaderTransport)
         # TODO implement _frame_size_check
         # flags(2), seq_id(4), header_size(2)
         n_header_meta = read(t.transport, 8)
-        t.flags = ntoh(reinterpret(UInt16, n_header_meta[1:2])[1])
-        t.seqid = ntoh(reinterpret(UInt32, n_header_meta[3:6])[1])
-        header_size = ntoh(reinterpret(UInt16, n_header_meta[7:8])[1])
+        t.flags = extract(n_header_meta, UInt16, 1)
+        t.seqid = extract(n_header_meta, UInt32, 3)
+        header_size = extract(n_header_meta, UInt16, 7)
         remaining = sz - 10
         @debug "read_frame!" tohex(proto_id) tohex(n_header_meta) tohex(t.flags) tohex(t.seqid) header_size remaining
         buf = IOBuffer()
@@ -387,9 +383,11 @@ function read_frame!(t::THeaderTransport)
     return nothing
 end
 
-# NOTE: buf position must be at the beginniing of header meta
+# NOTE: buf position must be at the beginning of header meta
 function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Integer, buf::IOBuffer)
-    t.read_transforms = Int[]  # clear out previous transformations (TODO: needed?)
+    # clear out previous transformations (TODO: needed?)
+    t.read_transforms = TransformType[]
+
     header_size_in_bytes = header_size * 4
     header_size_in_bytes <= sz ||
         throw(TTransportException("Header size $(header_size_in_bytes) is larger than frame size $sz"))
@@ -401,7 +399,7 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
 
     for _ in 1:num_headers
         trans_id = readVarint(buf)
-        if trans_id in (TransformType.ZLIB, TransformType.ZSTD) # TODO: snappy
+        if trans_id in (TransformID.ZLIB, TransformID.ZSTD) # TODO: snappy
             insert!(t.read_transforms, 1, trans_id)
         else
             throw(TTransportException("Unsupport transformation: $trans_id"))
@@ -411,9 +409,9 @@ function read_header_format!(t::THeaderTransport, sz::Integer, header_size::Inte
     empty!(t.read_headers)
     while position(buf) < end_header
         info_id = readVarint(buf)
-        if info_id === InfoType.NORMAL
+        if info_id === InfoID.NORMAL
             read_info_headers(buf, end_header, t.read_headers)
-        elseif info_id === InfoType.PERSISTENT
+        elseif info_id === InfoID.PERSISTENT
             read_info_headers(buf, end_header, t.read_persistent_headers)
         else
             break # Unknown
@@ -449,10 +447,13 @@ write(t::THeaderTransport, buff::Vector{UInt8}) = write(t.wbuf, buff)
 write(t::THeaderTransport, b::UInt8) = write(t.wbuf, b)
 
 function transform(t::THeaderTransport, data::Vector{UInt8})
+    if !isempty(t.write_transforms)
+        @debug "Transform method(s): " * join(t.write_transforms, ",")
+    end
     for trans_id in t.write_transforms
-        if trans_id == TransformType.ZLIB
+        if trans_id == TransformID.ZLIB
             data = transform_data(ZlibCompressor, data)
-        elseif trans_id == TransformType.ZSTD
+        elseif trans_id == TransformID.ZSTD
             data = transform_data(ZstdCompressor, data)
         else
             throw(TTransportException("Unsupported transformation: $trans_id"))
@@ -462,10 +463,13 @@ function transform(t::THeaderTransport, data::Vector{UInt8})
 end
 
 function untransform(t::THeaderTransport, data::Vector{UInt8})
+    if !isempty(t.read_transforms)
+        @debug "Unransform method(s): " * join(t.read_transforms, ",")
+    end
     for trans_id in t.read_transforms
-        if trans_id == TransformType.ZLIB
+        if trans_id == TransformID.ZLIB
             data = transform_data(ZlibDecompressor, data)
-        elseif trans_id == TransformType.ZSTD
+        elseif trans_id == TransformID.ZSTD
             data = transform_data(ZstdDecompressor, data)
         else
             throw(TTransportException("Unsupported transformation: $trans_id"))
@@ -480,7 +484,7 @@ function transform_data(codec, data::Vector{UInt8})
     return transcode(codec_processor, data)
 end
 
-function flush(t::THeaderTransport, oneway=false)
+function flush(t::THeaderTransport)
     # Flush write buffer (wbuf) which contains the payload
     wout = transform(t, take!(t.wbuf))
     wsz = length(wout)
@@ -494,12 +498,7 @@ function flush(t::THeaderTransport, oneway=false)
 
     peek_buffer(buf, "Header Message")
     write(t.transport, take!(buf))
-
-    if oneway
-        flush_oneway(t.transport)  # TODO implement oneway
-    else
-        flush(t.transport)
-    end
+    flush(t.transport)
 end
 
 function make_header_message(
@@ -524,8 +523,8 @@ function make_header_message(
 
     # 2. Info meta
     info_data = PipeBuffer()
-    flush_info_headers!(info_data, t.write_persistent_headers, InfoType.PERSISTENT)
-    flush_info_headers!(info_data, t.write_headers, InfoType.NORMAL)
+    flush_info_headers!(info_data, t.write_persistent_headers, InfoID.PERSISTENT)
+    flush_info_headers!(info_data, t.write_headers, InfoID.NORMAL)
     peek_buffer(info_data, "info_data")
 
     # 3. Header meta
@@ -581,12 +580,12 @@ function flush_info_headers!(buf::IOBuffer, headers::AbstractDict{<:String,<:Str
     end
 end
 
-# debug purpose only
-function peek_buffer(buf::IOBuffer, label::AbstractString)
-    n = bytesavailable(buf)
-    @debug "$label($n bytes)" tohex(buf.data[1:n])
-end
+# mutable struct THeaderServerTransport <: TServerTransport
+#     t::TServerSocket
+# end
 
-# Borrowed from protocol.jl
-writeVarint(io::IO, i::T) where {T <: Integer} = _write_uleb(io, i)
-readVarint(io::IO, t::Type{T}=Int64) where {T <: Integer} = _read_uleb(io, t)
+# open(transport::THeaderServerTransport) = open(transport.t)
+# close(transport::THeaderServerTransport) = close(transport.t)
+# listen(transport::THeaderServerTransport) = listen(transport.t)
+# accept(transport::THeaderServerTransport) = accept(transport.t)
+# rawio(transport::THeaderServerTransport) = rawio(transport.t)

@@ -503,7 +503,13 @@ mutable struct THeaderProtocol{T <: TTransport, P <: TProtocol} <: TProtocol
     proto::P
 end
 
-THeaderProtocol(p::TProtocol) = THeaderProtocol(p.t, p)
+function THeaderProtocol(p::TProtocol)
+    protocol = THeaderProtocol(p.t, p)
+    if p.t isa THeaderTransport   # client only
+        p.t.proto_id = proto_id(p)
+    end
+    return protocol
+end
 
 function writeMessageBegin(p::THeaderProtocol, name::AbstractString, mtype::Int32, seqid::Integer)
     writeMessageBegin(p.proto, name, mtype, seqid)
@@ -512,15 +518,13 @@ function writeMessageBegin(p::THeaderProtocol, name::AbstractString, mtype::Int3
     end
 end
 
-writeMessageBegin(p::THeaderProtocol, args...) = writeMessageBegin(p.proto, args...)
 writeMessageEnd(p::THeaderProtocol) = writeMessageEnd(p.proto)
-writeFieldBegin(p::THeaderProtocol, args...) = writeFieldBegin(p.proto, args...)
+writeFieldBegin(p::THeaderProtocol, name::AbstractString, ttype::Int32, fid::Integer) = writeFieldBegin(p.proto, name, ttype, fid)
 writeFieldStop(p::THeaderProtocol) = writeFieldStop(p.proto)
-writeMapBegin(p::THeaderProtocol, args...) = writeMapBegin(p.proto, args...)
-writeCollectionsBegin(p::THeaderProtocol, args...) = writeCollectionsBegin(p.proto, args...)
-writeListBegin(p::THeaderProtocol, args...) = writeListBegin(p.proto, args...)
-writeSetBegin(p::THeaderProtocol, args...) = writeSetBegin(p.proto, args...)
-write(p::THeaderProtocol, args...) = write(p.proto, args...)
+writeMapBegin(p::THeaderProtocol, ktype::Int32, vtype::Int32, size::Integer) = writeMapBegin(p.proto, ktype, vtype, size)
+writeCollectionsBegin(p::THeaderProtocol, etype::Int32, size::Integer) = writeCollectionsBegin(p.proto, etype, size)
+writeListBegin(p::THeaderProtocol, etype::Int32, size::Integer) = writeListBegin(p.proto, etype, size)
+writeSetBegin(p::THeaderProtocol, etype::Int32, size::Integer) = writeSetBegin(p.proto, etype, size)
 
 function readMessageBegin(p::THeaderProtocol)
     reset_protocol(p)
@@ -532,9 +536,17 @@ readFieldStop(p::THeaderProtocol) = readFieldStop(p.proto)
 readMapBegin(p::THeaderProtocol) = readMapBegin(p.proto)
 readListBegin(p::THeaderProtocol) = readListBegin(p.proto)
 readSetBegin(p::THeaderProtocol) = readSetBegin(p.proto)
-read(p::THeaderProtocol, args...) = read(p.proto, args...)
 
-# allow protocol to be changed! is that really needed?
+read(p::THeaderProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p.proto, T())
+for _typ in _plain_types
+    @eval begin
+        write(p::THeaderProtocol, val::$(_typ)) = write(p.proto, val)
+        read(p::THeaderProtocol, val::Type{$(_typ)}) = read(p.proto, val)
+        skip(p::THeaderProtocol, val::Type{$(_typ)}) = skip(p.proto, val)
+    end
+end
+
+# Allow protocol to be changed
 function reset_protocol(p::THeaderProtocol)
     proto_id(p) === p.t.proto_id && return
     p.proto = make_protocol(p.t, p.t.proto_id)
