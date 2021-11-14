@@ -634,13 +634,3 @@ function flush_info_headers!(buf::IOBuffer, headers::AbstractDict{<:String,<:Str
         empty!(headers)
     end
 end
-
-# mutable struct THeaderServerTransport <: TServerTransport
-#     t::TServerSocket
-# end
-
-# open(transport::THeaderServerTransport) = open(transport.t)
-# close(transport::THeaderServerTransport) = close(transport.t)
-# listen(transport::THeaderServerTransport) = listen(transport.t)
-# accept(transport::THeaderServerTransport) = accept(transport.t)
-# rawio(transport::THeaderServerTransport) = rawio(transport.t)
