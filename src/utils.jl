@@ -1,7 +1,7 @@
 """
     tohex(x)
 
-Display `x` in human readable format that is also easy to copy/paste
+Display `x` in hexadecimal format that is also easy to copy/paste
 to REPL to re-create the data for debugging purpose.
 """
 function tohex end
@@ -15,10 +15,10 @@ end
 tohex(x::Integer) = "0x" * string(x; base = 16)
 
 """
-    extract(x, type, pos = 1)
+    extract(x::Vector{UInt8}, type::Type{<:Integer}, pos::Integer = 1)
 
-Extract data from an array `x` at position `pos` with the target `type`.
-For integral data, the array `x` is assumed to be in Network byte ordre
+Extract data from `x` at position `pos` as an instance of `type`.
+For integral data, the array `x` is assumed to be in Network byte order
 (big-endian).
 
 For example:
@@ -45,7 +45,7 @@ end
 """
     debug_buffer(label::AbstractString, buf::IOBuffer)
 
-Display debug message with the buffer's content.
+Display a debug message with the buffer's content.
 """
 function debug_buffer(label::AbstractString, buf::IOBuffer)
     n = bytesavailable(buf)
@@ -65,3 +65,14 @@ writeVarint(io::IO, i::T) where {T <: Integer} = _write_uleb(io, i)
 Read a varint from the IO stream. Default is 64-bit integer.
 """
 readVarint(io::IO, t::Type{T}=Int64) where {T <: Integer} = _read_uleb(io, t)
+
+"""
+    transform_data(codec, data::Vector{UInt8})
+
+Transform `data` using the provided codec.
+"""
+function transform_data(codec, data::Vector{UInt8})
+    codec_processor = codec()
+    TranscodingStreams.initialize(codec_processor)
+    return transcode(codec_processor, data)
+end
