@@ -325,10 +325,12 @@ mutable struct THeaderTransport{T <: TTransport} <: TTransport
     wbuf::IOBuffer
     seqid::Int
     flags::Int
+    header_words::Int
+    frame_size::Int
     read_transforms::Vector{TransformType}
     write_transforms::Vector{TransformType}
     proto_id::Int
-    num_headers::Int
+    num_transforms::Int
     client_type::Int
     read_headers::HeadersType
     read_persistent_headers::HeadersType
@@ -342,6 +344,8 @@ mutable struct THeaderTransport{T <: TTransport} <: TTransport
         PipeBuffer(),          # wbuf
         0,                     # seqid
         0,                     # flags
+        0,                     # header_words
+        0,                     # frame_size
         TransformType[],       # read_transforms
         TransformType[],       # write_transforms
         ProtocolType.UNKNOWN,  # proto_id
@@ -414,6 +418,7 @@ function read_frame!(t::THeaderTransport)
     if sz == Magic.BIG_FRAME_MAGIC
         sz = extract(read(t.tp, 8), UInt64)
     end
+    t.frame_size = sz
 
     magic = read(t.tp, 2)
     proto_id = magic[1]
@@ -422,27 +427,40 @@ function read_frame!(t::THeaderTransport)
 
     if magic == Magic.PACKED_HEADER_MAGIC
         @debug("Found header magic", tohex(magic))
-        check_frame_size(sz, t.max_frame_size)
-        t.client_type = ClientType.HEADER
-        # flags(2), seq_id(4), header_words(2)
-        n_header_meta = read(t.tp, 8)
-        t.flags = extract(n_header_meta, UInt16, 1)
-        t.seqid = extract(n_header_meta, UInt32, 3)
-        header_words = extract(n_header_meta, UInt16, 7)
-        remaining = sz - 10
-        @debug("read_frame!", proto_id, tohex(n_header_meta), tohex(t.flags),
-            tohex(t.seqid), header_words, remaining)
-        buf = IOBuffer()
-        write(buf, magic) # 2 bytes
-        write(buf, n_header_meta) # 8 bytes
-        write(buf, read(t.tp, remaining))  # rest of header message
-        debug_buffer("read_frame! buf", buf)
-        read_header_format!(t, sz, header_words, buf)
+        check_frame_size(t.frame_size, t.max_frame_size)
+        buf = read_frame_into_buffer!(t)
+        read_header_format!(t, buf)
     else
         t.client_type = ClientType.UNKNOWN
         throw_header_exception("Client type $(t.client_type) not supported on server")
     end
     return nothing
+end
+
+"""
+    read_frame_into_buffer!(t::THeaderTransport)
+
+Read data from the network into a buffer. Update the transport object
+with header meta data information.
+"""
+function read_frame_into_buffer!(t::THeaderTransport)
+    t.client_type = ClientType.HEADER
+    # flags(2), seq_id(4), header_words(2)
+    n_header_meta = read(t.tp, 8)
+    t.flags = extract(n_header_meta, UInt16, 1)
+    t.seqid = extract(n_header_meta, UInt32, 3)
+    t.header_words = extract(n_header_meta, UInt16, 7)
+    remaining = t.frame_size - 10
+    @debug("read_frame_into_buffer!", proto_id, tohex(n_header_meta),
+        tohex(t.flags), tohex(t.seqid), t.header_words, remaining)
+
+    buf = IOBuffer()
+    write(buf, Magic.PACKED_HEADER_MAGIC) # 2 bytes
+    write(buf, n_header_meta) # 8 bytes
+    write(buf, read(t.tp, remaining))  # rest of header message
+    debug_buffer("read_frame_into_buffer!", buf)
+
+    return buf
 end
 
 function throw_header_exception(message::AbstractString)
@@ -457,11 +475,9 @@ function check_frame_size(sz, max_size)
 end
 
 """
-    read_header_format!(t::THeaderTransport, sz::Integer, header_words::Integer, buf::IOBuffer)
+    read_header_format!(t::THeaderTransport, buf::IOBuffer)
 
 Given data in `buf`, read head meta data, headers, and payload.
-The `sz` argument is the frame size without the very first LENGTH32
-field. `header_words` is the size of headers in 32-bit words.
 
 The following fields in `THeaderTransport` should be updated:
 - proto_id
@@ -470,41 +486,41 @@ The following fields in `THeaderTransport` should be updated:
 - read_persisitent_headers
 - rbuf (payload)
 """
-function read_header_format!(t::THeaderTransport, sz::Integer, header_words::Integer, buf::IOBuffer)
+function read_header_format!(t::THeaderTransport, buf::IOBuffer)
     # start right after magic(2), flags(2), seq_id(4), header_words(2)
     header_meta_size = 10
 
     # find out where the payload begins
-    header_size = header_words * 4
-    header_size <= sz ||
+    header_size = t.header_words * 4
+    header_size <= t.frame_size ||
         throw_header_exception("Header size $(header_size) is larger than frame size $sz")
 
     # read header meta
     seek(buf, header_meta_size)
     t.proto_id = readVarint(buf)
-    t.num_headers = readVarint(buf)
+    t.num_transforms = readVarint(buf)
 
     end_header = header_meta_size + header_size
-    @debug("read_header_format!", t.proto_id, t.num_headers, end_header)
+    @debug("read_header_format!", t.proto_id, t.num_transforms, end_header)
 
-    read_transform_ids!(t, buf, t.num_headers)
+    read_transform_ids!(t, buf)
     read_all_info_headers!(t, buf, end_header)
-    read_payload!(t, buf, end_header, sz)
+    read_payload!(t, buf, end_header)
     return nothing
 end
 
 """
-    read_transform_ids!(t::THeaderTransport, buf::IOBuffer, num_headers::Integer)
+    read_transform_ids!(t::THeaderTransport, buf::IOBuffer)
 
 Read all tranform id's. Note that the transform id's are placed in the
 transport's `read_tarnsform` field in the reverse order (last one first).
 That's because read transforms need to happen in the reverse order of
 write transforms.
 """
-function read_transform_ids!(t::THeaderTransport, buf::IOBuffer, num_headers::Integer)
+function read_transform_ids!(t::THeaderTransport, buf::IOBuffer)
     # clear out previous transformations
     t.read_transforms = TransformType[]
-    for _ in 1:num_headers
+    for _ in 1:t.num_transforms
         trans_id = readVarint(buf)
         if trans_id in (TransformID.ZLIB, TransformID.ZSTD) # TODO: Add Snappy support
             insert!(t.read_transforms, 1, trans_id)
@@ -534,15 +550,15 @@ function read_all_info_headers!(t::THeaderTransport, buf::IOBuffer, end_header::
 end
 
 """
-    read_payload!(t::THeaderTransport, buf::IOBuffer, end_header::Integer, sz::Integer)
+    read_payload!(t::THeaderTransport, buf::IOBuffer, end_header::Integer)
 
 Read payload from `buf`. Untransform the payload and place the data in the
 transport's read buffer `rbuf`.
 """
-function read_payload!(t::THeaderTransport, buf::IOBuffer, end_header::Integer, sz::Integer)
+function read_payload!(t::THeaderTransport, buf::IOBuffer, end_header::Integer)
     seek(buf, end_header)
     @debug("read_header_format! seeking to end_header", end_header)
-    payload_size = sz - end_header
+    payload_size = t.frame_size - end_header
     payload = read(buf, payload_size)
     @debug("read_header_format!", tohex(payload))
     t.rbuf = PipeBuffer(untransform(t, payload))
@@ -779,7 +795,7 @@ function make_header_message(t::THeaderTransport, payload::Vector{UInt8})
 end
 
 """
-    flush_info_headers!(buf::IOBuffer, headers::HeadersType, type::Integer)
+    flush_info_headers!(buf::IOBuffer, headers::HeadersType, info_id::Integer)
 
 Flush info headers to the buffer. The `headers` dictionary will be emptied
 after this call.
