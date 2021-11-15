@@ -686,8 +686,8 @@ Return a buffer with info headers for sending a header message.
 """
 function make_header_info_data(t::THeaderTransport)
     buf = PipeBuffer()
-    populate_info_headers!(buf, t.write_persistent_headers, InfoID.PERSISTENT)
-    populate_info_headers!(buf, t.write_headers, InfoID.NORMAL)
+    flush_info_headers!(buf, t.write_persistent_headers, InfoID.PERSISTENT)
+    flush_info_headers!(buf, t.write_headers, InfoID.NORMAL)
     debug_buffer("info_data", buf)
     return buf
 end
@@ -778,10 +778,15 @@ function make_header_message(t::THeaderTransport, payload::Vector{UInt8})
     return buf
 end
 
-# Send info headers to the buffer. The original dictionary will be emptied.
-function populate_info_headers!(buf::IOBuffer, headers::AbstractDict{<:String,<:String}, type::Integer)
+"""
+    flush_info_headers!(buf::IOBuffer, headers::HeadersType, type::Integer)
+
+Flush info headers to the buffer. The `headers` dictionary will be emptied
+after this call.
+"""
+function flush_info_headers!(buf::IOBuffer, headers::HeadersType, info_id::Integer)
     if length(headers) > 0
-        writeVarint(buf, type)
+        writeVarint(buf, info_id)
         writeVarint(buf, length(headers))
         foreach(headers) do (key, val)
             writeVarint(buf, length(key))
