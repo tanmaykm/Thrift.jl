@@ -58,6 +58,7 @@ end
 Write a varint to the IO stream.
 """
 writeVarint(io::IO, i::T) where {T <: Integer} = _write_uleb(io, i)
+writeVarint(io::IO, i::T) where {S <: Integer, T <: Base.Enums.Enum{S}} = writeVarint(io, S(i))
 
 """
     readVarint(io::IO, t::Type{T}=Int64) where {T <: Integer}
@@ -65,6 +66,7 @@ writeVarint(io::IO, i::T) where {T <: Integer} = _write_uleb(io, i)
 Read a varint from the IO stream. Default is 64-bit integer.
 """
 readVarint(io::IO, t::Type{T}=Int64) where {T <: Integer} = _read_uleb(io, t)
+readVarint(io::IO, t::Type{T}=Int64) where {S <: Integer, T <: Base.Enums.Enum{S}} = T(readVarint(io, S))
 
 """
     transform_data(codec, data::Vector{UInt8})

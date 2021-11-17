@@ -501,10 +501,16 @@ mutable struct THeaderProtocol{T <: TTransport, P <: TProtocol} <: TProtocol
 end
 
 function THeaderProtocol(p::TProtocol)
+    # THeaderProtocol wraps an underlying protocol such as TBinaryProtocol
     protocol = THeaderProtocol(p.t, p)
-    if p.t isa THeaderTransport   # client only
+
+    # Extract proto_id from the underlying protocol and update transport
+    # This only works on the client side because THeaderTransport is a
+    # client transport.
+    if p.t isa THeaderTransport
         p.t.proto_id = proto_id(p)
     end
+
     return protocol
 end
 
@@ -551,7 +557,7 @@ function reset_protocol(p::THeaderProtocol)
     p.proto = make_protocol(p.t, p.t.proto_id)
 end
 
-function make_protocol(t::TTransport, proto_id::Integer)
+function make_protocol(t::TTransport, proto_id::ProtocolTypeEnum)
     if proto_id == ProtocolType.BINARY
         return TBinaryProtocol(t)
     elseif proto_id == ProtocolType.COMPACT
@@ -565,7 +571,13 @@ end
 # Traits
 # ==========================================
 
+"""
+    proto_id(p::TProtocol)
+
+Return a value of `ProtocolTypeEnum` for the protocol.
+"""
 function proto_id end
+
 proto_id(p::TBinaryProtocol) = ProtocolType.BINARY
 proto_id(p::TCompactProtocol) = ProtocolType.COMPACT
 proto_id(p::THeaderProtocol) = proto_id(p.proto)

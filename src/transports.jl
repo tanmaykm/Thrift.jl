@@ -261,36 +261,48 @@ write(t::TFileTransport, b::UInt8) = write(t.handle, b)
 # Define constants
 
 module ProtocolType
-    const BINARY = 0
-    const COMPACT = 2
-    const UNKNOWN = -1
+    @enum ProtocolTypeEnum begin
+        BINARY = 0
+        COMPACT = 2
+        UNKNOWN = 100
+    end
 end
+using .ProtocolType: ProtocolTypeEnum
 
 module ClientType
-    const HEADER = 0
-    const FRAMED_DEPRECATED = 1
-    const UNFRAMED_DEPRECATED = 2
-    const HTTP_SERVER = 3
-    const HTTP_CLIENT = 4
-    const FRAMED_COMPACT = 5
-    const HTTP_GET = 7
-    const UNKNOWN = 8
-    const UNFRAMED_COMPACT_DEPRECATED = 9
+    @enum ClientTypeEnum begin
+        HEADER = 0
+        FRAMED_DEPRECATED = 1
+        UNFRAMED_DEPRECATED = 2
+        HTTP_SERVER = 3
+        HTTP_CLIENT = 4
+        FRAMED_COMPACT = 5
+        HTTP_GET = 7
+        UNKNOWN = 8
+        UNFRAMED_COMPACT_DEPRECATED = 9
+    end
 end
+using .ClientType: ClientTypeEnum
 
 module TransformID
-    const NONE = 0x00
-    const ZLIB = 0x01
-    const HMAC = 0x02
-    const SNAPPY = 0x03
-    const QLZ = 0x04
-    const ZSTD = 0x05
+    @enum TransformIDEnum begin
+        NONE = 0
+        ZLIB = 1
+        HMAC = 2
+        SNAPPY = 3
+        QLZ = 4
+        ZSTD = 5
+    end
 end
+using .TransformID: TransformIDEnum
 
 module InfoID
-    const NORMAL = 1
-    const PERSISTENT = 2
+    @enum InfoIDEnum begin
+        NORMAL = 1
+        PERSISTENT = 2
+    end
 end
+using .InfoID: InfoIDEnum
 
 module Magic
     const HEADER_MAGIC = 0x0FFF0000
@@ -311,7 +323,6 @@ module HeaderConstants
 end
 
 const HeadersType = Dict{String,String}
-const TransformType = Int
 
 """
     THeaderTransport{T <: TTransport} <: TTransport
@@ -327,11 +338,11 @@ mutable struct THeaderTransport{T <: TTransport} <: TTransport
     flags::Int
     header_words::Int
     frame_size::Int
-    read_transforms::Vector{TransformType}
-    write_transforms::Vector{TransformType}
-    proto_id::Int
+    read_transforms::Vector{TransformIDEnum}
+    write_transforms::Vector{TransformIDEnum}
+    proto_id::ProtocolTypeEnum
     num_transforms::Int
-    client_type::Int
+    client_type::ClientTypeEnum
     read_headers::HeadersType
     read_persistent_headers::HeadersType
     write_headers::HeadersType
@@ -346,8 +357,8 @@ mutable struct THeaderTransport{T <: TTransport} <: TTransport
         0,                     # flags
         0,                     # header_words
         0,                     # frame_size
-        TransformType[],       # read_transforms
-        TransformType[],       # write_transforms
+        TransformIDEnum[],     # read_transforms
+        TransformIDEnum[],     # write_transforms
         ProtocolType.UNKNOWN,  # proto_id
         0,                     # number of headers
         ClientType.HEADER,     # client_type
@@ -497,7 +508,7 @@ function read_header_format!(t::THeaderTransport, buf::IOBuffer)
 
     # read header meta
     seek(buf, header_meta_size)
-    t.proto_id = readVarint(buf)
+    t.proto_id = readVarint(buf, ProtocolTypeEnum)
     t.num_transforms = readVarint(buf)
 
     end_header = header_meta_size + header_size
@@ -519,9 +530,9 @@ write transforms.
 """
 function read_transform_ids!(t::THeaderTransport, buf::IOBuffer)
     # clear out previous transformations
-    t.read_transforms = TransformType[]
+    t.read_transforms = TransformIDEnum[]
     for _ in 1:t.num_transforms
-        trans_id = readVarint(buf)
+        trans_id = readVarint(buf, TransformIDEnum)
         if trans_id in (TransformID.ZLIB, TransformID.ZSTD) # TODO: Add Snappy support
             insert!(t.read_transforms, 1, trans_id)
         else
@@ -542,8 +553,11 @@ function read_all_info_headers!(t::THeaderTransport, buf::IOBuffer, end_header::
     # The number of header groups is unknown, and so it keeps reading until
     # it hits the end_header marker.
     while position(buf) < end_header
-        info_id = readVarint(buf)
-        read_info_headers!(t, info_id, buf, end_header)
+        info_id_val = readVarint(buf)
+        if info_id_val !== 0  # ignore paddings
+            info_id = InfoIDEnum(info_id_val)
+            read_info_headers!(t, info_id, buf, end_header)
+        end
     end
     merge!(t.read_headers, t.read_persistent_headers)
     return nothing
@@ -572,13 +586,13 @@ Read info headers from `buf`. The `info_id` is used to indicate whether
 the data should be read into `read_headers` or `read_persisitent_headers`.
 Throws exception if buffer position ever past the provided `limit`.
 """
-function read_info_headers!(t::THeaderTransport, info_id::Int, buf::IOBuffer, limit::Integer)
+function read_info_headers!(t::THeaderTransport, info_id::InfoIDEnum, buf::IOBuffer, limit::Integer)
     dct = if info_id === InfoID.NORMAL
         t.read_headers
     elseif info_id === InfoID.PERSISTENT
         t.read_persisitent_headers
     else
-        return # skip unknown info_id's because they may be padding
+        throw_header_exception("Bug: enum not handled: $info_id")
     end
 
     num_keys = readVarint(buf)
@@ -795,12 +809,12 @@ function make_header_message(t::THeaderTransport, payload::Vector{UInt8})
 end
 
 """
-    flush_info_headers!(buf::IOBuffer, headers::HeadersType, info_id::Integer)
+    flush_info_headers!(buf::IOBuffer, headers::HeadersType, info_id::InfoIDEnum)
 
 Flush info headers to the buffer. The `headers` dictionary will be emptied
 after this call.
 """
-function flush_info_headers!(buf::IOBuffer, headers::HeadersType, info_id::Integer)
+function flush_info_headers!(buf::IOBuffer, headers::HeadersType, info_id::InfoIDEnum)
     if length(headers) > 0
         writeVarint(buf, info_id)
         writeVarint(buf, length(headers))
