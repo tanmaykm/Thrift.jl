@@ -554,7 +554,7 @@ function read_all_info_headers!(t::THeaderTransport, buf::IOBuffer, end_header::
     # it hits the end_header marker.
     while position(buf) < end_header
         info_id_val = readVarint(buf)
-        if info_id_val !== 0  # ignore paddings
+        if info_id_val != 0  # ignore paddings
             info_id = InfoIDEnum(info_id_val)
             read_info_headers!(t, info_id, buf, end_header)
         end
