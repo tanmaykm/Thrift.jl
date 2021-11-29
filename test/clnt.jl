@@ -13,9 +13,11 @@ import .proto_tests: test_hello, test_exception, test_oneway, ping, test_enum, t
 import .srvcctrl: start_service, stop_service
 
 # create a client instance with our choice of protocol and transport
-clnt_transport = TSocket(19999)
-#proto = TCompactProtocol(clnt_transport)
-proto = TBinaryProtocol(clnt_transport)
+# clnt_transport = TSocket(19999)
+# proto = TCompactProtocol(clnt_transport)
+# proto = TBinaryProtocol(clnt_transport)
+clnt_transport = THeaderTransport(TSocket(19999))
+proto = THeaderProtocol(TBinaryProtocol(clnt_transport))
 clnt = ProtoTestsClient(proto)
 
 function run_client()

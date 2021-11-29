@@ -4,6 +4,10 @@ using Distributed
 using Sockets
 using ThriftJuliaCompiler_jll
 
+using CodecZlib
+using CodecZstd
+using TranscodingStreams
+
 import Sockets: TCPServer, listen, accept
 import Base: open, close, isopen, read, read!, write, flush, skip, show, copy!, hasproperty, getproperty, setproperty!, propertynames
 
@@ -19,14 +23,14 @@ export ThriftMetaAttribs, ThriftMeta, meta
 export isinitialized, set_field!, get_field, clear, has_field, fillunset, isfilled, thriftbuild, enumstr
 
 # from transports.jl
-export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport, TFileTransport
+export TFramedTransport, TSASLClientTransport, TSocket, TServerSocket, TSocketBase, TMemoryTransport, TFileTransport, THeaderTransport
 export TransportExceptionTypes, TTransportException
 
 # from sasl.jl
 export SASL_MECH_PLAIN, SASL_MECH_KERB, SASL_MECH_LDAP, SASLException
 
 # from protocols.jl
-export TBinaryProtocol, TCompactProtocol
+export TBinaryProtocol, TCompactProtocol, THeaderProtocol
 
 # from processor.jl
 export ThriftProcessor, ThriftHandler, process, handle, extend, distribute
@@ -47,5 +51,6 @@ include("transports.jl")
 include("protocols.jl")
 include("processor.jl")
 include("server.jl")
+include("utils.jl")
 
 end # module

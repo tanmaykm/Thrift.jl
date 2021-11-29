@@ -21,6 +21,7 @@ function serve_accepted(client::TTransport, s::TServerBase)
     catch ex
         if !isa(ex, EOFError)
             @error("exception serving request", exception=(ex, catch_backtrace()))
+            showerror(stdout, ex, catch_backtrace())
         end
     end
     close(itrans)
@@ -59,7 +60,7 @@ end
 # Process Pool Server
 mutable struct TProcessPoolServer <: TServer
     base::TServerBase
-    function TProcessPoolServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function) 
+    function TProcessPoolServer(srvr_t::TServerTransport, processor::TProcessor, in_t::Function, in_p::Function, out_t::Function, out_p::Function)
         distribute(processor)
         new(TServerBase(srvr_t, processor, in_t, in_p, out_t, out_p))
     end
@@ -76,4 +77,3 @@ function serve(ss::TAsyncServer)
         @async serve_accepted(client, s)
     end
 end
-

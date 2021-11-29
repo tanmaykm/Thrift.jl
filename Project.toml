@@ -3,16 +3,19 @@ uuid = "8d9c9c80-f77e-5080-9541-c6f69d204e22"
 version = "0.8.3"
 
 [deps]
+CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
+CodecZstd = "6b39b394-51ab-5f42-8807-6242bab2b4c2"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 ThriftJuliaCompiler_jll = "815b9798-8dd0-5549-95cc-3cf7d01bce66"
+TranscodingStreams = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
+
+[compat]
+ThriftJuliaCompiler_jll = "0.12"
+julia = "1.3"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
-
-[compat]
-julia = "1.3"
-ThriftJuliaCompiler_jll = "0.12"

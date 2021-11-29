@@ -18,11 +18,12 @@ end
 
 
 # ==========================================
-# Binary Protocol Begin
+# Binary Protocol
 # ==========================================
 const BINARY_VERSION_MASK = 0xffff0000
 const BINARY_VERSION_1 = 0x80010000
 const BINARY_TYPE_MASK = 0x000000ff
+const BINARY_PROTOCOL_ID = 0x80
 
 mutable struct TBinaryProtocol <: TProtocol
     t::TTransport
@@ -149,12 +150,7 @@ read(p::TBinaryProtocol, ::Type{TUTF8})         = convert(TUTF8, String(read(p, 
 read(p::TBinaryProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(undef, _read_fixed(p.t, UInt32(0), 4, true)))
 
 # ==========================================
-# Binary Protocol End
-# ==========================================
-
-
-# ==========================================
-# Compact Protocol Begin
+# Compact Protocol
 # ==========================================
 struct _enum_CType
     STOP::UInt8
@@ -494,6 +490,95 @@ read(p::TCompactProtocol, t::Type{TDOUBLE})     = reinterpret(TDOUBLE, _read_fix
 read!(p::TCompactProtocol, a::Vector{UInt8})    = read!(p.t, a)
 read(p::TCompactProtocol, ::Type{TUTF8})        = convert(TUTF8, String(read(p, Vector{UInt8})))
 read(p::TCompactProtocol, ::Type{Vector{UInt8}}) = read!(p, Vector{UInt8}(undef, readSize(p)))
+
 # ==========================================
-# Compact Protocol End
+# Header Protocol Begin
 # ==========================================
+
+mutable struct THeaderProtocol{T <: TTransport, P <: TProtocol} <: TProtocol
+    t::T
+    proto::P
+end
+
+function THeaderProtocol(p::TProtocol)
+    # THeaderProtocol wraps an underlying protocol such as TBinaryProtocol
+    protocol = THeaderProtocol(p.t, p)
+
+    # Extract proto_id from the underlying protocol and update transport
+    # This only works on the client side because THeaderTransport is a
+    # client transport.
+    if p.t isa THeaderTransport
+        p.t.proto_id = proto_id(p)
+    end
+
+    return protocol
+end
+
+function writeMessageBegin(p::THeaderProtocol, name::AbstractString, mtype::Int32, seqid::Integer)
+    writeMessageBegin(p.proto, name, mtype, seqid)
+    if mtype in (MessageType.CALL, MessageType.ONEWAY)
+        p.t.seqid = seqid
+    end
+end
+
+writeMessageEnd(p::THeaderProtocol) = writeMessageEnd(p.proto)
+writeFieldBegin(p::THeaderProtocol, name::AbstractString, ttype::Int32, fid::Integer) = writeFieldBegin(p.proto, name, ttype, fid)
+writeFieldStop(p::THeaderProtocol) = writeFieldStop(p.proto)
+writeMapBegin(p::THeaderProtocol, ktype::Int32, vtype::Int32, size::Integer) = writeMapBegin(p.proto, ktype, vtype, size)
+writeCollectionsBegin(p::THeaderProtocol, etype::Int32, size::Integer) = writeCollectionsBegin(p.proto, etype, size)
+writeListBegin(p::THeaderProtocol, etype::Int32, size::Integer) = writeListBegin(p.proto, etype, size)
+writeSetBegin(p::THeaderProtocol, etype::Int32, size::Integer) = writeSetBegin(p.proto, etype, size)
+
+function readMessageBegin(p::THeaderProtocol)
+    reset_protocol(p)
+    readMessageBegin(p.proto)
+end
+
+readFieldBegin(p::THeaderProtocol) = readFieldBegin(p.proto)
+readFieldStop(p::THeaderProtocol) = readFieldStop(p.proto)
+readMapBegin(p::THeaderProtocol) = readMapBegin(p.proto)
+readListBegin(p::THeaderProtocol) = readListBegin(p.proto)
+readSetBegin(p::THeaderProtocol) = readSetBegin(p.proto)
+
+# TODO(tomkwong) Is this needed? What about other container types?
+# read(p::THeaderProtocol, ::Type{T}) where {T<:TSTRUCT} = read(p.proto, T())
+
+for _typ in _plain_types
+    @eval begin
+        write(p::THeaderProtocol, val::$(_typ)) = write(p.proto, val)
+        read(p::THeaderProtocol, val::Type{$(_typ)}) = read(p.proto, val)
+        skip(p::THeaderProtocol, val::Type{$(_typ)}) = skip(p.proto, val)
+    end
+end
+
+# Allow protocol to be changed
+function reset_protocol(p::THeaderProtocol)
+    proto_id(p) === p.t.proto_id && return
+    p.proto = make_protocol(p.t, p.t.proto_id)
+end
+
+function make_protocol(t::TTransport, proto_id::ProtocolTypeEnum)
+    if proto_id == ProtocolType.BINARY
+        return TBinaryProtocol(t)
+    elseif proto_id == ProtocolType.COMPACT
+        return TCompactProtocol(t)
+    else
+        throw(ArgumentError("Unknown proto_id: $proto_id"))
+    end
+end
+
+# ==========================================
+# Traits
+# ==========================================
+
+"""
+    proto_id(p::TProtocol)
+
+Return a value of `ProtocolTypeEnum` for the protocol.
+"""
+function proto_id end
+
+proto_id(p::TBinaryProtocol) = ProtocolType.BINARY
+proto_id(p::TCompactProtocol) = ProtocolType.COMPACT
+proto_id(p::THeaderProtocol) = proto_id(p.proto)
+proto_id(x::TProtocol) = throw(ArgumentError("Unsupported protocol type: $(typeof(x))"))

@@ -10,4 +10,3 @@ function stop_service()
     global srvr
     close(srvr)
 end
-
