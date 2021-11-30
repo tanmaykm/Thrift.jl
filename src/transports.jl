@@ -37,7 +37,8 @@ isopen(t::TSASLClientTransport) = isopen(t.tp)
 flush(t::TSASLClientTransport)  = flush(t.tp)
 
 read!(t::TSASLClientTransport, buff::Vector{UInt8}) = read!(t.tp, buff)
-read(t::TSASLClientTransport, UInt8) = read(t.tp, UInt8)
+read(t::TSASLClientTransport, ::Type{UInt8}) = read(t.tp, UInt8)
+read(t::TSASLClientTransport, sz::Integer) = read(t.tp, sz)
 function write(t::TSASLClientTransport, buff::Vector{UInt8})
     @debug("TSASLClientTransport buffering bytes", len=length(buff))
     write(t.tp, buff)
@@ -93,12 +94,19 @@ function read!(t::TFramedTransport, buff::Vector{UInt8})
     end
     buff
 end
-function read(t::TFramedTransport, UInt8)
+function read(t::TFramedTransport, ::Type{UInt8})
     navlb = bytesavailable(t.rbuff)
     if navlb == 0
         readframe(t)
     end
     return read(t.rbuff, UInt8)
+end
+function read(t::TFramedTransport, sz::Integer)
+    navlb = bytesavailable(t.rbuff)
+    if navlb == 0
+        readframe(t)
+    end
+    return read(t.rbuff, sz)
 end
 
 function write(t::TFramedTransport, buff::Vector{UInt8})
@@ -231,7 +239,8 @@ close(t::TMemoryTransport)  = nothing
 isopen(t::TMemoryTransport) = true
 flush(t::TMemoryTransport)  = nothing
 read!(t::TMemoryTransport, buff::Vector{UInt8}) = read!(t.buff, buff)
-read(t::TMemoryTransport, UInt8) = read(t.buff, UInt8)
+read(t::TMemoryTransport, ::Type{UInt8}) = read(t.buff, UInt8)
+read(t::TMemoryTransport, sz::Integer) = read(t.buff, sz)
 write(t::TMemoryTransport, buff::Vector{UInt8}) = write(t.buff, buff)
 write(t::TMemoryTransport, b::UInt8) = write(t.buff, b)
 
@@ -246,7 +255,8 @@ close(t::TFileTransport)  = nothing
 isopen(t::TFileTransport) = true
 flush(t::TFileTransport)  = flush(t.handle)
 read!(t::TFileTransport, buff::Vector{UInt8}) = read!(t.handle, buff)
-read(t::TFileTransport, UInt8) = read(t.handle, UInt8)
+read(t::TFileTransport, ::Type{UInt8}) = read(t.handle, UInt8)
+read(t::TFileTransport, sz::Integer) = read(t.handle, sz)
 write(t::TFileTransport, buff::Vector{UInt8}) = write(t.handle, buff)
 write(t::TFileTransport, b::UInt8) = write(t.handle, b)
 
