@@ -1,6 +1,6 @@
 name = "Thrift"
 uuid = "8d9c9c80-f77e-5080-9541-c6f69d204e22"
-version = "0.8.3"
+version = "0.8.4"
 
 [deps]
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
