@@ -58,6 +58,7 @@ public:
 	void generate_typedef(t_typedef* ttypedef);
 	void generate_enum(t_enum* tenum);
 	void generate_const(t_const* tconst);
+	void generate_forward_declaration(t_struct* tstruct);
 	void generate_struct(t_struct* tstruct);
 	void generate_xception(t_struct* txception);
 	void generate_service(t_service* tservice);
@@ -68,6 +69,7 @@ public:
 	std::string render_const_value(t_type* type, t_const_value* value, bool with_conversion);
 	string julia_type(t_type *type);
 	void generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception, string suffix="");
+	void generate_jl_thrift_spec(ofstream& out, t_struct* tstruct, bool is_exception, string suffix="");
 	std::string jl_autogen_comment();
 	std::string jl_imports();
 	void generate_module_begin();
@@ -433,21 +435,30 @@ string t_jl_generator::render_const_value(t_type* type, t_const_value* value, bo
 }
 
 /**
- * Generates a Julia type
+ * Generates the "forward declarations" for structs.
+ * The implementations are generated later in `generate_jl_thrift_spec`.
+ * This allows co-recursive structs.
+ */
+void t_jl_generator::generate_forward_declaration(t_struct* tstruct) {
+    generate_jl_struct(f_types_, tstruct, tstruct->is_xception());
+}
+
+/**
+ * Generates the implementation for a Julia type
  */
 void t_jl_generator::generate_struct(t_struct* tstruct) {
-	generate_jl_struct(f_types_, tstruct, false);
+	generate_jl_thrift_spec(f_types_, tstruct, false);
 	module_exports_ << "export " << chk_keyword(tstruct->get_name()) << " # struct" << endl;
 }
 
 /**
- * Generates a struct definition for a thrift exception. Basically the same
- * as a struct but extends the Exception class.
+ * Generates the implementation for a thrift exception. Basically the same
+ * as for a Julia type but extends the Exception class.
  *
  * @param txception The struct definition
  */
 void t_jl_generator::generate_xception(t_struct* txception) {
-	generate_jl_struct(f_types_, txception, true);
+	generate_jl_thrift_spec(f_types_, txception, true);
 	module_exports_ << "export " << chk_keyword(txception->get_name()) << " # exception" << endl;
 }
 
@@ -455,8 +466,6 @@ void t_jl_generator::generate_xception(t_struct* txception) {
  * Generates a Julia composite type or exception type
  */
 void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool is_exception, string suffix /*=""*/) {
-	const vector<t_field*>& members = tstruct->get_members();
-	vector<t_field*>::const_iterator m_iter;
 	string struct_name = chk_keyword(tstruct->get_name()) + suffix;
 
 	indent(out) << endl << "mutable struct " << struct_name;
@@ -490,6 +499,15 @@ void t_jl_generator::generate_jl_struct(ofstream& out, t_struct* tstruct, bool i
 	indent(out) << "end" << endl;
 	indent_down();
 	out << "end # mutable struct " << struct_name << endl;
+}
+
+/**
+ * Generates an implementation for a Julia composite type or exception type
+ */
+void t_jl_generator::generate_jl_thrift_spec(ofstream& out, t_struct* tstruct, bool is_exception, string suffix /*=""*/) {
+	const vector<t_field*>& members = tstruct->get_members();
+	vector<t_field*>::const_iterator m_iter;
+	string struct_name = chk_keyword(tstruct->get_name()) + suffix;
 
 	std::ostringstream fldall;
 	std::ostringstream fldalltypes;
@@ -864,6 +882,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 
 		indent(f_service_) << "# types encapsulating arguments and return values of method " << function_name << endl;
 		generate_jl_struct(f_service_, arglist, false, "_" + service_name_);
+		generate_jl_thrift_spec(f_service_, arglist, false, "_" + service_name_);
 		f_service_ << endl;
 
 		if(tfunction->is_oneway()) {
@@ -886,6 +905,7 @@ void t_jl_generator::generate_service_args_and_returns(t_service* tservice) {
 			}
 		}
 		generate_jl_struct(f_service_, result_success, false, "_" + service_name_);
+		generate_jl_thrift_spec(f_service_, result_success, false, "_" + service_name_);
 		f_service_ << endl;
 		if(success_field != NULL) {
 			free(success_field);
