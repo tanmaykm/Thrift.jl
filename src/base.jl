@@ -153,7 +153,7 @@ function skip_container(p::TProtocol, ::Type{T}) where T<:TSTRUCT
     while true
         (name, ttype, id) = readFieldBegin(p)
         (ttype == TType.STOP) && break
-        if iscontainer(ttyp)
+        if iscontainer(ttype)
             skip_container(p, julia_type(ttype))
         else
             skip(p, julia_type(ttype))
