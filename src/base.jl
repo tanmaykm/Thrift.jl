@@ -102,6 +102,9 @@ for _typ in _plain_types
         skip(p::TProtocol, ::Type{$(_typ)}) = read(p, $(_typ))
     end
 end
+# TSTRING = Union{String, Vector{UInt8}} needs its own skip method;
+# the concrete String and Vector{UInt8} methods above don't cover the Union.
+skip(p::TProtocol, ::Type{TSTRING}) = read(p, TBINARY)
 
 writeMessageBegin(p::TProtocol, name::AbstractString, mtype::Int32, seqid::Integer)     = nothing
 writeMessageEnd(p::TProtocol)                                                           = nothing
